@@ -1,4 +1,3 @@
 .workbuddy/
-.ghtoken
-_ghpoll.mjs
 node_modules/
+*.token
