@@ -1,0 +1,1829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>海投 HAITOU · 第一人称增量放置</title>
+<style>
+/* ================= 基础 ================= */
+*{margin:0;padding:0;box-sizing:border-box}
+*{cursor:none!important}
+html,body{height:100%;overflow:hidden}
+body{background:#04060a;font-family:'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;user-select:none;color:#c2ccd6}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 42%,#0a0e12,#04060a 70%)}
+#scene{position:relative;width:min(100vw,177.78vh);height:min(100vh,56.25vw);overflow:hidden;background:#0a0d10}
+#sceneSvg{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+/* ================= 屏幕（电脑显示器内） ================= */
+#screen{
+  position:absolute;left:21.25%;top:6.889%;width:57.5%;height:58%;
+  background:linear-gradient(180deg,#d9e9f3 0%,#f3eddd 56%,#e6dbc2 100%);
+  overflow:hidden;font-size:11px;border-radius:9px;
+}
+#screen::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:40;
+  background:linear-gradient(118deg,rgba(255,255,255,.18) 0 15%,rgba(255,255,255,0) 33%);
+}
+#desktop{position:absolute;left:0;right:0;top:0;bottom:5em;overflow:hidden}
+#taskbar{
+  position:absolute;left:0;right:0;bottom:0;height:5em;z-index:48;
+  background:#efe6d0;border-top:3px solid #2a2622;
+  display:flex;align-items:center;gap:.7em;padding:0 1em;font-size:1.55em;color:#4a4234;
+}
+#taskbar .tbtn{font-family:inherit;font-size:1em;padding:.28em .9em;background:#fdf8ec;
+  border:2px solid #2a2622;border-radius:.4em;color:#3f3a2e;white-space:nowrap}
+#taskbar .tbtn:hover{background:#e6f3d8}
+#taskbar .tbtn.on{background:#6fb03c;color:#fff}
+#taskbar .sep{color:#b3a78c}
+#taskbar .stat{display:flex;gap:.4em;align-items:baseline;white-space:nowrap}
+#taskbar .stat i{font-style:normal;color:#8a7f68;font-size:.88em}
+#taskbar .stat b{color:#3f3a2e;font-size:1.16em;font-variant-numeric:tabular-nums;display:inline-block}
+#taskbar .stat.mot b{color:#3f8f2f}
+#taskbar .stat b.tick{animation:statTick .4s ease-out}
+#taskbar .stat.rd b.tick{animation:statTickRed .4s ease-out}
+@keyframes statTick{0%{transform:scale(1.35);color:#3f8f2f}100%{transform:scale(1)}}
+@keyframes statTickRed{0%{transform:scale(1.35);color:#c2453e}100%{transform:scale(1)}}
+
+/* ================= 桌面图标 ================= */
+.dicon{position:absolute;width:7.4em;padding:.45em .1em;text-align:center}
+.dicon .ic{
+  position:relative;width:4.9em;height:4.9em;margin:0 auto .35em;
+  display:flex;align-items:center;justify-content:center;font-size:1.45em;
+  background:#fdf8ec;border:3px solid #2a2622;border-radius:.6em;
+  box-shadow:.22em .28em 0 rgba(42,38,34,.22);
+}
+.dicon .lb{font-size:1.34em;color:#3f3a2e;line-height:1.3;word-break:break-all;font-weight:700;text-shadow:0 1px 0 rgba(255,255,255,.75)}
+.dicon:hover .ic{background:#eaf6dc;box-shadow:.22em .28em 0 rgba(63,143,47,.5)}
+.dicon .badge{position:absolute;top:-.45em;right:-.45em;width:1.3em;height:1.3em;border-radius:50%;
+  background:#d94b3f;border:2px solid #2a2622;display:none}
+.dicon.alert .badge{display:block}
+
+/* ================= 窗口 ================= */
+.win{
+  position:absolute;display:flex;flex-direction:column;overflow:hidden;
+  background:#fdf8ec;border:3px solid #2a2622;border-radius:.75em;
+  box-shadow:.5em .6em 0 rgba(42,38,34,.26);
+  min-width:22em;min-height:14em;
+}
+.win.focus{box-shadow:.5em .6em 0 rgba(42,38,34,.46)}
+.wbar{height:3.6em;flex:none;display:flex;align-items:center;gap:.8em;padding:0 .7em 0 1em;
+  background:#6fb03c;border-bottom:3px solid #2a2622}
+.wbar .wic{font-size:1.5em}
+.dicon .ic svg{width:66%;height:66%;display:block}
+.wbar .wic{display:flex;align-items:center}
+.wbar .wic svg{width:1.35em;height:1.35em;display:block}
+.wbar .wt{flex:1;font-size:1.42em;color:#fff;font-weight:700;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 0 rgba(0,0,0,.22)}
+.wbar .wclose{width:3.2em;height:2.4em;line-height:2.1em;text-align:center;font-size:1.35em;color:#3f3a2e;
+  background:#fdf8ec;border:2px solid #2a2622;border-radius:.4em}
+.wbar .wclose:hover{background:#d94b3f;color:#fff}
+.wbody{flex:1;overflow:auto;font-size:1.6em;color:#4a4234;display:flex;flex-direction:column;min-height:0}
+
+/* ================= 海投直聘 ================= */
+.zhead{flex:none;padding:.8em 1.1em;border-bottom:2px dashed #cfc4a8;font-size:1.5em;color:#3f8f2f;
+  font-weight:700;display:flex;justify-content:space-between;align-items:baseline;letter-spacing:.06em}
+.zhead .zsub{font-size:.76em;color:#8a7f68;font-weight:400;letter-spacing:0}
+.zbtnwrap{position:relative;flex:none;padding:1.25em 1em .95em;text-align:center;border-bottom:2px dashed #cfc4a8}
+#btnSend{
+  font-family:inherit;font-weight:700;font-size:3.4em;letter-spacing:.5em;text-indent:.5em;
+  color:#fff;background:#6fb03c;border:3px solid #2a2622;border-radius:.35em;
+  padding:.4em 1em;box-shadow:.12em .16em 0 #2a2622;
+  transition:transform .05s,background .15s;
+}
+#btnSend:hover{background:#7cc444}
+#btnSend:active{transform:translate(.12em,.16em);box-shadow:none}
+#btnSend.hit{animation:btnHit .38s ease-out}
+@keyframes btnHit{
+  0%{box-shadow:.12em .16em 0 #2a2622, 0 0 0 0 rgba(111,176,60,.55)}
+  100%{box-shadow:.12em .16em 0 #2a2622, 0 0 0 1.9em rgba(111,176,60,0)}
+}
+.zhint{font-size:1.15em;color:#8a7f68;margin-top:.9em;letter-spacing:.06em}
+/* 投递时的反馈气泡 */
+.chip{
+  position:absolute;left:50%;top:0;white-space:nowrap;pointer-events:none;
+  font-size:1.12em;font-weight:700;padding:.32em .75em;border:2px solid #2a2622;border-radius:.55em;
+  background:#fdf8ec;color:#6b6250;box-shadow:.12em .16em 0 #2a2622;
+  animation:chipUp 1.3s cubic-bezier(.2,.7,.3,1) forwards;
+}
+.chip.pos{background:#e9f6d9;color:#2f7a1f}
+.chip.iv{background:#fbe0dc;color:#b8332b}
+.chip.neg{background:#f2ece0;color:#8a8175}
+.chip.sys{background:#fff6d6;color:#7a6a2f}
+@keyframes chipUp{
+  0%{opacity:0;transform:translate(-50%,.3em) scale(.9)}
+  12%{opacity:1;transform:translate(-50%,0) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-3.8em) scale(1)}
+}
+/* 按钮下方的「最近反馈」条 */
+.zlast{
+  flex:none;margin:.6em .9em .1em;padding:.5em .7em;text-align:center;
+  border:2px dashed #cfc4a8;border-radius:.5em;font-size:1.1em;color:#8a8175;
+  line-height:1.45;min-height:1.5em;
+}
+.zlast b{color:#3f8a2a}
+.zlast.iv{border-color:#e3b3ac;color:#b8332b;background:#fdf0ee}
+.zlast.iv b{color:#b8332b}
+.zlast.pos{border-color:#bcd9a4;color:#3f7a2a;background:#f3faea}
+.zlast.pos b{color:#3f8f2f}
+.zlast.pop{animation:zpop .32s ease-out}
+@keyframes zpop{0%{transform:scale(.94)}60%{transform:scale(1.03)}100%{transform:scale(1)}}
+.ztitle{flex:none;font-size:1.15em;color:#a2977c;padding:.75em 1.1em .3em;letter-spacing:.2em;font-weight:700}
+.zfeed{flex:1;min-height:7em;overflow:auto}
+
+/* ================= 信息流条目 ================= */
+.fl{padding:.55em .95em;font-size:1.15em;line-height:1.55;border-bottom:1px solid #efe7d3;animation:flin .25s}
+@keyframes flin{from{opacity:0;transform:translateY(-.5em)}}
+.fl .co{color:#a2977c}
+.fl.neg{color:#8a8175}
+.fl.pos{color:#3f7a2a}
+.fl.iv{color:#c2453e;font-weight:700}
+.fl.chain{color:#2f3a26;background:#fff6d6;border:2px solid #2a2622;border-left-width:.55em;border-radius:.45em;
+  padding:.7em .9em;font-weight:700;margin:.4em .5em}
+.fl.sys{color:#a2977c;font-style:italic}
+.fl .m{float:right;color:#3f8f2f;font-weight:700;padding-left:.6em}
+
+/* ================= 技能行 ================= */
+.srow{display:flex;gap:1em;align-items:center;justify-content:space-between;
+  padding:.8em .9em;border:3px solid #2a2622;margin:.55em;background:#fffaee;border-radius:.6em}
+.srow .nm{font-size:1.32em;font-weight:700;color:#3f3a2e;letter-spacing:.03em}
+.srow .ds{font-size:1.08em;color:#8a7f68;margin-top:.28em;line-height:1.45}
+.srow .buy{font-family:inherit;font-size:1.05em;padding:.5em 1em;white-space:nowrap;font-weight:700;
+  background:#6fb03c;border:3px solid #2a2622;color:#fff;border-radius:.5em;box-shadow:.1em .14em 0 #2a2622}
+.srow .buy:hover:not(:disabled){background:#7cc444}
+.srow .buy:active:not(:disabled){transform:translate(.1em,.14em);box-shadow:none}
+.srow .buy:disabled{background:#ded5c0;color:#9c9382;border-color:#a2977c;box-shadow:none;font-weight:400}
+.srow.owned{background:#eef7e2;border-color:#3f8f2f}
+.srow.locked{opacity:.5}
+.wflavor{padding:.7em 1em .3em;font-size:1.08em;color:#a2977c;font-style:italic;letter-spacing:.04em}
+.wstat{margin:.55em .9em;padding:.7em .8em;border:2px dashed #cfc4a8;border-radius:.5em;font-size:1.08em;color:#6b6250;line-height:1.75}
+.wstat b{color:#3f8f2f}
+
+/* ================= AI 代投（电脑管家的额外技能） ================= */
+.aitag{display:inline-block;font-size:.8em;font-weight:700;color:#fff;background:#5b6bb5;
+  border-radius:.3em;padding:.06em .4em;margin-right:.36em;letter-spacing:.05em;vertical-align:.05em}
+.xtag{display:inline-block;font-size:.72em;font-weight:700;color:#fff;background:#5b6bb5;
+  border-radius:.3em;padding:.06em .4em;margin-right:.4em;letter-spacing:.08em;vertical-align:.12em}
+.aipanel{flex:none;margin:.5em .9em .2em;padding:.8em .9em;border:3px solid #2a2622;border-radius:.6em;
+  background:#f6f5ff;box-shadow:.1em .14em 0 rgba(42,38,34,.16)}
+.aipanelhd{font-size:1.1em;font-weight:700;color:#5b6bb5;letter-spacing:.1em;margin-bottom:.6em}
+.aipanelhd span{color:#a2977c;font-weight:400;letter-spacing:0}
+.airow{display:flex;align-items:center;justify-content:space-between;gap:.8em}
+.aistate{font-size:1.2em;font-weight:700;color:#3f3a2e;letter-spacing:.03em}
+.aistate i{font-style:normal;color:#a2977c;font-size:.78em;font-weight:400;letter-spacing:0}
+.aidot{width:.7em;height:.7em;border-radius:50%;background:#c9c0ab;border:2px solid #2a2622;
+  display:inline-block;margin-right:.5em;vertical-align:.04em}
+.ai .aidot{background:#6fb03c;animation:aipulse 1.4s ease-in-out infinite}
+@keyframes aipulse{0%,100%{box-shadow:0 0 0 0 rgba(111,176,60,.6)}60%{box-shadow:0 0 0 .42em rgba(111,176,60,0)}}
+.aibtn{font-family:inherit;font-weight:700;font-size:1.15em;letter-spacing:.1em;color:#fff;background:#5b6bb5;
+  border:3px solid #2a2622;border-radius:.45em;padding:.38em 1em;box-shadow:.1em .14em 0 #2a2622;white-space:nowrap}
+.aibtn:hover{background:#6d7dc7}
+.aibtn:active{transform:translate(.1em,.14em);box-shadow:none}
+.aibtn.on{background:#c25f52}
+.aibtn.on:hover{background:#d17163}
+.aiivs{display:flex;flex-wrap:wrap;gap:.4em;margin-top:.7em}
+.aiiv{font-family:inherit;font-size:1em;padding:.3em .65em;background:#fffdf5;color:#6b6250;
+  border:2px solid #a2977c;border-radius:.45em;font-weight:700}
+.aiiv:hover{border-color:#2a2622;color:#3f3a2e}
+.aiiv.on{background:#5b6bb5;border-color:#2a2622;color:#fff;box-shadow:.08em .1em 0 #2a2622}
+.aiinfo{margin-top:.65em;font-size:1em;color:#8a7f68;line-height:1.6;font-style:italic}
+.aiinfo b{color:#5b6bb5;font-style:normal}
+.ailog{margin-top:.7em;max-height:10em;overflow:auto;border:2px dashed #cfc4a8;border-radius:.5em;background:#fffdf5}
+.ailog div{padding:.42em .7em;font-size:1em;line-height:1.5;color:#6b6250;border-bottom:1px dashed #efe7d3}
+.ailog div b{color:#5b6bb5}
+
+/* ================= 我的电脑 ================= */
+.sysrow{display:flex;justify-content:space-between;gap:1em;padding:.75em 1em;border-bottom:1px dashed #e6ddc6;font-size:1.15em}
+.sysrow i{font-style:normal;color:#8a7f68}
+.sysrow b{color:#3f3a2e}
+.sysrow b.g{color:#3f8f2f}
+.sysnote{padding:.9em 1em;font-size:1.05em;color:#8a7f68;line-height:1.8;font-style:italic}
+.sysbtns{display:flex;gap:.7em;padding:1em;justify-content:flex-end}
+.sysbtns button{font-family:inherit;font-size:1.08em;padding:.5em 1.2em;background:#fffaee;
+  border:2px solid #2a2622;border-radius:.5em;color:#3f3a2e}
+.sysbtns button:hover{background:#eaf6dc}
+.sysbtns button.danger:hover{background:#f7d6d2;border-color:#c2453e;color:#a8332d}
+
+/* ================= 贪吃蛇（摸鱼小游戏） ================= */
+.snk{flex:none;display:flex;justify-content:space-between;align-items:baseline;gap:.8em;
+  padding:.75em 1em;border-bottom:2px dashed #cfc4a8;font-size:1.15em;color:#3f3a2e;font-weight:700;letter-spacing:.04em}
+.snk i{font-style:normal;font-weight:400;color:#a2977c;font-size:.85em;letter-spacing:0}
+.snk .snkmeta{font-weight:400;color:#8a7f68;font-size:.9em;letter-spacing:0;text-align:right}
+.snkwrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:.6em .9em}
+#snkCv{display:block;background:#fdf8ec;border:3px solid #2a2622;
+  border-radius:.45em;box-shadow:.14em .18em 0 rgba(42,38,34,.2)}
+.snkfoot{flex:none;text-align:center;padding:.2em 1em .9em;font-size:1.02em;color:#8a7f68;line-height:1.75}
+.snkfoot b{color:#3f8f2f}
+.snkbtns{display:flex;gap:.6em;justify-content:center;margin-bottom:.7em}
+.snkbtn{font-family:inherit;font-size:1.05em;font-weight:700;padding:.4em 1.1em;background:#6fb03c;color:#fff;
+  border:3px solid #2a2622;border-radius:.45em;box-shadow:.1em .14em 0 #2a2622}
+.snkbtn:hover{background:#7cc444}
+.snkbtn:active{transform:translate(.1em,.14em);box-shadow:none}
+.snkbtn.alt{background:#fffaee;color:#3f3a2e}
+.snkbtn.alt:hover{background:#eaf6dc}
+
+/* ================= 邮件（2000 年代客户端） ================= */
+.mail{background:#f2efe4;color:#2b2620;font-family:Tahoma,'Microsoft YaHei',sans-serif;font-size:1.6em;min-height:100%;display:flex;flex-direction:column}
+.mtitle{background:#2b4a73;color:#fff;padding:.5em .8em;display:flex;justify-content:space-between;font-size:.95em}
+.mtool{background:#ddd7c6;border-bottom:1px solid #b3ab95;padding:.25em .8em;font-size:.85em;color:#4a4436}
+.mfields{padding:.7em 1em;border-bottom:1px dashed #b3ab95;line-height:2;background:#e8e3d3;font-size:.92em}
+.mfields b{color:#3f3a2e;margin-right:.3em}
+.mbody{padding:1.6em 1.3em;line-height:2.2;font-size:1em;color:#2b2620;flex:1}
+
+/* ================= 系统通知 ================= */
+#notes{position:absolute;right:1em;bottom:6.4em;width:24em;display:flex;flex-direction:column;gap:.6em;z-index:44;pointer-events:none}
+.note{background:#fdf8ec;border:3px solid #2a2622;border-left-width:.6em;border-left-color:#6fb03c;border-radius:.5em;
+  padding:.7em .9em;font-size:1.25em;color:#3f3a2e;line-height:1.5;box-shadow:.3em .35em 0 rgba(42,38,34,.22);animation:nin .3s}
+.note.warn{background:#fdefd6;border-left-color:#e0903a}
+@keyframes nin{from{opacity:0;transform:translateX(1.6em)}}
+
+/* ================= 光标 ================= */
+#cursor{position:fixed;left:0;top:0;width:22px;height:22px;z-index:900;pointer-events:none}
+#cursor svg{width:100%;height:100%;display:block;transform-origin:2px 2px;transition:transform .07s,filter .07s;filter:drop-shadow(0 1px 3px rgba(0,0,0,.9))}
+#cursor.hot svg{transform:scale(1.22);filter:drop-shadow(0 0 6px rgba(55,255,119,.85))}
+#cursor.press svg{transform:scale(.82)}
+
+/* ================= 开场动画 ================= */
+#intro{position:fixed;inset:0;z-index:600;background:#22304e;transition:opacity 1s}
+#intro.hide{opacity:0;pointer-events:none}
+.islide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .7s;pointer-events:none;padding:3vh 4vw}
+.islide.on{opacity:1;pointer-events:auto}
+.islide svg{width:min(86vw,980px);height:auto;max-height:52vh}
+.itxt{margin-top:2rem;min-height:8.5rem;text-align:center;font-size:19px;color:#f3ead6;
+  font-weight:700;letter-spacing:.1em;line-height:2.1;max-width:800px;text-shadow:0 2px 0 rgba(21,19,16,.35)}
+.itxt .l{display:block;min-height:1.6em}
+.itxt .big{display:block;color:#7cc444;font-size:38px;font-weight:700;letter-spacing:.6em;text-indent:.6em;
+  margin-top:.3rem;text-shadow:.06em .07em 0 #151310}
+#skip{position:absolute;top:22px;right:26px;background:#fdf8ec;border:3px solid #151310;color:#3f3a2e;
+  font-family:inherit;font-size:13px;font-weight:700;padding:7px 15px;letter-spacing:.12em;border-radius:.5em;
+  box-shadow:.15em .2em 0 #151310}
+#skip:hover{background:#e6f3d8}
+#startBtn{margin-top:1.6rem;background:#6fb03c;border:3px solid #151310;color:#fff;font-weight:700;
+  font-family:inherit;font-size:18px;letter-spacing:.4em;text-indent:.4em;padding:15px 44px;border-radius:.5em;
+  box-shadow:.18em .22em 0 #151310}
+#startBtn:hover{background:#7cc444}
+#startBtn:active{transform:translate(.18em,.22em);box-shadow:none}
+.idots{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:9px}
+.idots i{width:11px;height:11px;background:#3d4f74;border:2px solid #151310;display:block;border-radius:50%}
+.idots i.on{background:#7cc444}
+#nextHint{position:absolute;bottom:58px;left:50%;transform:translateX(-50%);color:#9fb0d0;font-size:12px;
+  letter-spacing:.2em;font-weight:700}
+.steam{animation:steamk 5s ease-in-out infinite}
+@keyframes steamk{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:.75;transform:translateY(-.5em)}}
+.svled{animation:ledk 2.4s steps(2) infinite}
+@keyframes ledk{50%{opacity:.35}}
+</style>
+</head>
+<body>
+<div id="cursor">
+  <svg viewBox="0 0 20 26" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0.5 0.5 L0.5 19.2 L5.2 14.6 L8.4 21.4 L11.6 19.8 L8.4 13.2 L14.6 13.2 Z"
+          fill="#eef5f1" stroke="#0a0e12" stroke-width="1.4"/>
+  </svg>
+</div>
+
+<div id="wrap">
+  <div id="scene">
+        <svg id="sceneSvg" viewBox="0 0 1600 900" preserveAspectRatio="none">
+      <defs>
+        <radialGradient id="gGlowWall">
+          <stop offset="0" stop-color="#37ff77" stop-opacity=".10"/>
+          <stop offset="1" stop-color="#37ff77" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="gGlowDesk">
+          <stop offset="0" stop-color="#37ff77" stop-opacity=".13"/>
+          <stop offset="1" stop-color="#37ff77" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="gWarm">
+          <stop offset="0" stop-color="#ffe0a8" stop-opacity=".22"/>
+          <stop offset="1" stop-color="#ffe0a8" stop-opacity="0"/>
+        </radialGradient>
+        <pattern id="pKeys" width="34" height="22" patternUnits="userSpaceOnUse">
+          <rect x="3" y="3" width="27" height="15" rx="3" fill="#fbf7ec" stroke="#2a2622" stroke-width="2"/>
+        </pattern>
+      </defs>
+
+      <!-- ===== 墙 / 踢脚线 ===== -->
+      <rect x="0" y="0" width="1600" height="900" fill="#d3c6a8"/>
+      <rect x="0" y="604" width="1600" height="38" fill="#c2b393"/>
+      <line x1="0" y1="604" x2="1600" y2="604" stroke="#2a2622" stroke-width="5"/>
+      <line x1="0" y1="642" x2="1600" y2="642" stroke="#2a2622" stroke-width="6"/>
+
+      <!-- ===== 暖光 ===== -->
+      <ellipse cx="800" cy="0" rx="720" ry="210" fill="url(#gWarm)"/>
+
+      <!-- ===== 窗户（夜晚 + 百叶） ===== -->
+      <g>
+        <rect x="36" y="104" width="264" height="366" rx="10" fill="#7a4a2a" stroke="#2a2622" stroke-width="6"/>
+        <rect x="52" y="120" width="232" height="334" fill="#2e3f63"/>
+        <circle cx="108" cy="182" r="26" fill="#f6f1dd" stroke="#2a2622" stroke-width="4"/>
+        <circle cx="120" cy="176" r="6" fill="#cdc6ae"/>
+        <g fill="#e3d7b8" stroke="#2a2622" stroke-width="3">
+          <rect x="52" y="140" width="232" height="15"/>
+          <rect x="52" y="180" width="232" height="15"/>
+          <rect x="52" y="220" width="232" height="15"/>
+          <rect x="52" y="260" width="232" height="15"/>
+          <rect x="52" y="300" width="232" height="15"/>
+          <rect x="52" y="340" width="232" height="15"/>
+          <rect x="52" y="380" width="232" height="15"/>
+          <rect x="52" y="420" width="232" height="15"/>
+        </g>
+        <rect x="152" y="120" width="12" height="334" fill="#7a4a2a"/>
+      </g>
+
+      <!-- ===== 相框（日常生活小画） ===== -->
+      <g transform="translate(64,486)">
+        <rect width="128" height="118" rx="4" fill="#7a4a2a" stroke="#2a2622" stroke-width="6"/>
+        <rect x="12" y="12" width="104" height="94" fill="#f4b06a"/>
+        <rect x="12" y="66" width="104" height="40" fill="#6fa03c"/>
+        <circle cx="52" cy="52" r="17" fill="#f6d24a" stroke="#2a2622" stroke-width="4"/>
+      </g>
+
+      <!-- ===== 墙上钟 ===== -->
+      <g transform="translate(1448,150)">
+        <circle r="54" fill="#fbf8f0" stroke="#2a2622" stroke-width="7"/>
+        <circle r="43" fill="none" stroke="#c9bda2" stroke-width="3"/>
+        <line x1="0" y1="0" x2="0" y2="-26" stroke="#2a2622" stroke-width="8" transform="rotate(353)"/>
+        <line x1="0" y1="0" x2="0" y2="-38" stroke="#2a2622" stroke-width="6" transform="rotate(282)"/>
+        <line x1="0" y1="0" x2="0" y2="-40" stroke="#c2453e" stroke-width="3" transform="rotate(120)"/>
+        <circle r="5" fill="#2a2622"/>
+      </g>
+
+      <!-- ===== 招聘海报 ===== -->
+      <g transform="translate(1310,286) rotate(2)">
+        <rect width="226" height="302" fill="#f7f0dc" stroke="#2a2622" stroke-width="6"/>
+        <text x="113" y="80" text-anchor="middle" font-size="44" font-weight="bold" fill="#3f8f2f"
+              font-family="sans-serif" stroke="#2a2622" stroke-width="2">招聘中</text>
+        <text x="113" y="142" text-anchor="middle" font-size="38" font-weight="bold" fill="#c2453e"
+              font-family="sans-serif" stroke="#2a2622" stroke-width="2">已招满</text>
+        <g fill="#cdbf9e">
+          <rect x="28" y="180" width="170" height="10"/>
+          <rect x="28" y="204" width="124" height="10"/>
+          <rect x="28" y="228" width="150" height="10"/>
+          <rect x="28" y="252" width="96" height="10"/>
+        </g>
+      </g>
+
+      <!-- ===== 桌面 ===== -->
+      <rect x="0" y="642" width="1600" height="258" fill="#c08a52"/>
+      <rect x="0" y="696" width="1600" height="204" fill="#9a6a3c"/>
+      <line x1="0" y1="696" x2="1600" y2="696" stroke="#7d5430" stroke-width="4"/>
+
+      <!-- ===== 屏幕在墙上的反光 ===== -->
+      <ellipse cx="800" cy="330" rx="620" ry="330" fill="url(#gGlowWall)"/>
+
+      <!-- ===== 显示器 ===== -->
+      <rect x="324" y="46" width="952" height="554" rx="18" fill="#5b6169" stroke="#2a2622" stroke-width="6"/>
+      <rect x="340" y="62" width="920" height="522" rx="8" fill="#f4efe2"/>
+      <circle class="svled" cx="1244" cy="588" r="6" fill="#37ff77"/>
+      <circle cx="1244" cy="588" r="14" fill="#37ff77" opacity=".22"/>
+      <!-- 桌上的便利贴 -->
+      <g transform="translate(404,656) rotate(-7)">
+        <rect width="62" height="62" fill="#f2d94e" stroke="#2a2622" stroke-width="4"/>
+        <g fill="#a89b52"><rect x="10" y="16" width="40" height="5"/><rect x="10" y="30" width="28" height="5"/></g>
+      </g>
+      <!-- 支架 -->
+      <path d="M760 600 L840 600 L884 656 L716 656 Z" fill="#4d545c" stroke="#2a2622" stroke-width="6"/>
+      <rect x="686" y="656" width="232" height="16" rx="8" fill="#5b6169" stroke="#2a2622" stroke-width="6"/>
+
+      <!-- ===== 屏幕洒在桌上的光 ===== -->
+      <ellipse cx="800" cy="756" rx="620" ry="180" fill="url(#gGlowDesk)"/>
+
+      <!-- ===== 键盘 ===== -->
+      <g>
+        <path d="M520 700 L1080 700 L1136 786 L464 786 Z" fill="#b9b4a8" stroke="#2a2622" stroke-width="6"/>
+        <path d="M542 714 L1058 714 L1104 772 L496 772 Z" fill="url(#pKeys)" stroke="#2a2622" stroke-width="4"/>
+      </g>
+
+      <!-- ===== 鼠标 + 右手（跟随真实鼠标移动） ===== -->
+      <g id="mouseRig">
+        <path d="M1206 700 C1206 662 1292 654 1356 646" fill="none" stroke="#2a2622" stroke-width="6"/>
+        <path d="M1206 700 c42 0 60 26 60 56 c0 32 -26 46 -60 46 c-34 0 -60 -14 -60 -46 c0 -30 18 -56 60 -56 z"
+              fill="#e8e4da" stroke="#2a2622" stroke-width="6"/>
+        <line x1="1206" y1="706" x2="1206" y2="760" stroke="#cfc9bd" stroke-width="5"/>
+        <rect x="1196" y="716" width="20" height="26" rx="10" fill="#b9b4a8" stroke="#2a2622" stroke-width="4"/>
+        <rect x="1232" y="768" width="200" height="86" rx="30" fill="#e2733c" stroke="#2a2622" stroke-width="6"/>
+        <rect x="1232" y="768" width="26" height="86" fill="#f0d9b5" stroke="#2a2622" stroke-width="6"/>
+        <ellipse cx="1206" cy="792" rx="54" ry="30" fill="#f0c9a0" stroke="#2a2622" stroke-width="6"/>
+        <g stroke="#cf9d72" stroke-width="5" stroke-linecap="round">
+          <line x1="1180" y1="776" x2="1236" y2="772"/>
+          <line x1="1178" y1="792" x2="1240" y2="790"/>
+          <line x1="1180" y1="808" x2="1236" y2="810"/>
+        </g>
+      </g>
+
+      <!-- ===== 左手（搭在键盘上） ===== -->
+      <g>
+        <rect x="410" y="782" width="200" height="86" rx="30" fill="#e2733c" stroke="#2a2622" stroke-width="6"/>
+        <rect x="584" y="782" width="26" height="86" fill="#f0d9b5" stroke="#2a2622" stroke-width="6"/>
+        <ellipse cx="624" cy="804" rx="54" ry="30" fill="#f0c9a0" stroke="#2a2622" stroke-width="6"/>
+        <g stroke="#cf9d72" stroke-width="5" stroke-linecap="round">
+          <line x1="652" y1="788" x2="708" y2="784"/>
+          <line x1="654" y1="804" x2="714" y2="802"/>
+          <line x1="652" y1="820" x2="708" y2="822"/>
+        </g>
+      </g>
+
+      <!-- ===== 桌上杂物 ===== -->
+      <!-- 小盆栽 -->
+      <g transform="translate(30,646)">
+        <path d="M18 130 L102 130 L92 78 L28 78 Z" fill="#cf7a4a" stroke="#2a2622" stroke-width="6"/>
+        <line x1="18" y1="78" x2="102" y2="78" stroke="#2a2622" stroke-width="6"/>
+        <g fill="#5faa4a" stroke="#2a2622" stroke-width="5">
+          <ellipse cx="42" cy="52" rx="24" ry="30" transform="rotate(-24 42 52)"/>
+          <ellipse cx="76" cy="46" rx="24" ry="32" transform="rotate(20 76 46)"/>
+          <ellipse cx="58" cy="26" rx="20" ry="28"/>
+        </g>
+      </g>
+      <!-- 简历纸堆 -->
+      <g transform="translate(168,668) rotate(-5)">
+        <rect x="6" y="-12" width="140" height="10" fill="#e6dcc4" stroke="#2a2622" stroke-width="3"/>
+        <rect x="0" y="0" width="146" height="148" fill="#fdfaf0" stroke="#2a2622" stroke-width="6"/>
+        <g fill="#cdbf9e">
+          <rect x="18" y="22" width="70" height="8"/>
+          <rect x="18" y="40" width="100" height="8"/>
+          <rect x="18" y="58" width="60" height="8"/>
+          <rect x="18" y="76" width="92" height="8"/>
+        </g>
+        <text x="102" y="126" text-anchor="middle" font-size="24" font-weight="bold" fill="#3f8f2f" font-family="sans-serif">简历</text>
+      </g>
+      <!-- 泡面杯 -->
+      <g transform="translate(326,700)">
+        <path d="M2 0 L74 0 L68 104 L8 104 Z" fill="#f2dcae" stroke="#2a2622" stroke-width="6"/>
+        <ellipse cx="38" cy="2" rx="37" ry="10" fill="#e3cd9c" stroke="#2a2622" stroke-width="5"/>
+        <rect x="5" y="40" width="67" height="18" fill="#d1543f" stroke="#2a2622" stroke-width="4"/>
+        <g stroke="#c99a5c" stroke-width="6" stroke-linecap="round">
+          <line x1="46" y1="-6" x2="72" y2="-34"/>
+          <line x1="56" y1="-2" x2="82" y2="-28"/>
+        </g>
+        <g class="steam" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity=".55">
+          <path d="M24 -22 c-8 -12 8 -18 0 -30"/>
+          <path d="M52 -26 c-8 -14 8 -20 0 -32"/>
+        </g>
+      </g>
+      <!-- 汽水罐 -->
+      <g transform="translate(1450,702)">
+        <rect width="58" height="104" rx="12" fill="#cf3b3b" stroke="#2a2622" stroke-width="6"/>
+        <ellipse cx="29" cy="6" rx="29" ry="9" fill="#d8d4cc" stroke="#2a2622" stroke-width="5"/>
+        <rect x="4" y="38" width="50" height="24" fill="#f2efe6" stroke="#2a2622" stroke-width="4"/>
+      </g>
+      <!-- 零食袋 -->
+      <g transform="translate(1442,806)">
+        <path d="M0 0 L104 0 L104 78 L52 62 L0 78 Z" fill="#d98a3a" stroke="#2a2622" stroke-width="6"/>
+        <rect x="14" y="16" width="76" height="22" fill="#f0d9a8" stroke="#2a2622" stroke-width="4"/>
+      </g>
+      <!-- 缠在一起的数据线 -->
+      <path d="M1100 790 C1180 830 1250 850 1330 830 C1390 816 1400 860 1350 872"
+            fill="none" stroke="#2a2622" stroke-width="5" stroke-linecap="round"/>
+      <path d="M500 690 C400 700 300 690 220 700" fill="none" stroke="#2a2622" stroke-width="5" stroke-linecap="round" opacity=".8"/>
+    </svg>
+    <div id="screen">
+      <div id="desktop">
+        <div id="wins"></div>
+        <div id="notes"></div>
+      </div>
+      <div id="taskbar">
+        <button class="tbtn" id="tbStart">海投OS</button>
+        <span class="sep">│</span>
+        <div id="tbApps" style="display:flex;gap:.5em"></div>
+        <div style="flex:1"></div>
+        <span class="stat"><i>投递</i><b id="tbSubs">0</b></span>
+        <span class="sep">│</span>
+        <span class="stat mot"><i>动力</i><b id="tbMot">0</b></span>
+        <span class="sep">│</span>
+        <span class="stat rd"><i>被拒</i><b id="tbRounds">0</b></span>
+        <span class="sep">│</span>
+        <span class="stat ai" id="tbAiWrap" title="电脑管家 · AI 代投" style="display:none"><button id="tbAi" class="tbtn">AI 待机</button></span>
+        <span class="sep">│</span>
+        <span class="stat"><b id="tbClock">--:--</b></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="intro">
+  <button id="skip">跳过（Esc）</button>
+  <section class="islide" data-lines='["大环境很冷。","你投出了 187 份简历。","回复：0。"]'>
+    <svg viewBox="0 0 1000 460" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(130,30) rotate(-5)">
+        <rect x="16" y="-18" width="300" height="16" fill="#cdbf9e" stroke="#151310" stroke-width="6"/>
+        <rect x="0" y="0" width="320" height="400" fill="#fdf8ec" stroke="#151310" stroke-width="7"/>
+        <g fill="#cdbf9e">
+          <rect x="28" y="44" width="170" height="12"/>
+          <rect x="28" y="76" width="220" height="12"/>
+          <rect x="28" y="108" width="130" height="12"/>
+          <rect x="28" y="140" width="240" height="12"/>
+          <rect x="28" y="172" width="180" height="12"/>
+          <rect x="28" y="204" width="205" height="12"/>
+        </g>
+      </g>
+      <g font-family="sans-serif" text-anchor="middle">
+        <text x="700" y="196" font-size="122" font-weight="bold" fill="#cdbf9e" stroke="#151310" stroke-width="6" paint-order="stroke">187</text>
+        <text x="700" y="238" font-size="26" font-weight="bold" fill="#f3ead6" stroke="#151310" stroke-width="5" paint-order="stroke" letter-spacing="8">已投出</text>
+        <text x="700" y="380" font-size="122" font-weight="bold" fill="#7cc444" stroke="#151310" stroke-width="6" paint-order="stroke">0</text>
+        <text x="700" y="422" font-size="26" font-weight="bold" fill="#f3ead6" stroke="#151310" stroke-width="5" paint-order="stroke" letter-spacing="8">回复</text>
+      </g>
+    </svg>
+    <div class="itxt"></div>
+  </section>
+
+  <section class="islide" data-lines='["存款余额：¥3.20。","泡面还剩两包。","房租还有 6 天到期。"]'>
+    <svg viewBox="0 0 1000 460" xmlns="http://www.w3.org/2000/svg">
+      <rect x="80" y="30" width="280" height="260" rx="10" fill="#7a4a2a" stroke="#151310" stroke-width="7"/>
+      <rect x="96" y="46" width="248" height="228" fill="#2e3f63"/>
+      <circle cx="164" cy="106" r="28" fill="#f6f1dd" stroke="#151310" stroke-width="5"/>
+      <circle cx="176" cy="100" r="7" fill="#cdc6ae"/>
+      <line x1="236" y1="46" x2="236" y2="274" stroke="#7a4a2a" stroke-width="10"/>
+      <rect x="0" y="330" width="1000" height="130" fill="#9a6a3c"/>
+      <line x1="0" y1="330" x2="1000" y2="330" stroke="#151310" stroke-width="7"/>
+      <g transform="translate(392,206)">
+        <path d="M4 0 L126 0 L116 124 L14 124 Z" fill="#f2dcae" stroke="#151310" stroke-width="7"/>
+        <ellipse cx="65" cy="2" rx="62" ry="14" fill="#e3cd9c" stroke="#151310" stroke-width="6"/>
+        <rect x="9" y="44" width="112" height="26" fill="#d1543f" stroke="#151310" stroke-width="5"/>
+        <g class="steam" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity=".5">
+          <path d="M42 -30 c-12 -18 12 -28 0 -46"/>
+          <path d="M92 -34 c-12 -20 12 -30 0 -50"/>
+        </g>
+      </g>
+      <g transform="translate(636,150) rotate(-6)">
+        <rect width="180" height="300" rx="22" fill="#3f3a2e" stroke="#151310" stroke-width="7"/>
+        <rect x="14" y="30" width="152" height="240" rx="10" fill="#1b2334"/>
+        <text x="90" y="140" text-anchor="middle" font-size="40" font-weight="bold" fill="#7cc444" font-family="sans-serif">¥3.20</text>
+        <text x="90" y="182" text-anchor="middle" font-size="20" fill="#9fb0d0" font-family="sans-serif">余额</text>
+      </g>
+    </svg>
+    <div class="itxt"></div>
+  </section>
+
+  <section class="islide" data-lines='["你盯着屏幕，屏幕上是第一百个「已读」。","再投一百份。再投一千份。","总有一个 HR 会点开。"]'>
+    <svg viewBox="0 0 1000 460" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="500" cy="220" rx="380" ry="230" fill="#7cc444" opacity=".16"/>
+      <rect x="300" y="50" width="400" height="270" rx="16" fill="#5b6169" stroke="#151310" stroke-width="7"/>
+      <rect x="316" y="66" width="368" height="238" fill="#7cc444" stroke="#151310" stroke-width="5"/>
+      <g fill="#2f6b22">
+        <rect x="340" y="94" width="210" height="14"/>
+        <rect x="340" y="126" width="150" height="14"/>
+        <rect x="340" y="158" width="260" height="14"/>
+        <rect x="340" y="190" width="120" height="14"/>
+        <rect x="340" y="222" width="230" height="14"/>
+        <rect x="340" y="254" width="170" height="14"/>
+      </g>
+      <path d="M448 320 L552 320 L576 372 L424 372 Z" fill="#4d545c" stroke="#151310" stroke-width="7"/>
+      <rect x="376" y="372" width="248" height="16" rx="8" fill="#5b6169" stroke="#151310" stroke-width="6"/>
+      <g fill="#151310">
+        <circle cx="500" cy="288" r="62"/>
+        <path d="M398 460 c0 -106 46 -170 102 -170 c56 0 102 64 102 170 z"/>
+      </g>
+    </svg>
+    <div class="itxt"></div>
+  </section>
+
+  <section class="islide" data-lines='["于是你决定——","!海投"]'>
+    <svg viewBox="0 0 1000 460" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#7cc444" stroke-width="11" stroke-linecap="round" opacity=".5">
+        <line x1="500" y1="230" x2="150" y2="34"/>
+        <line x1="500" y1="230" x2="500" y2="4"/>
+        <line x1="500" y1="230" x2="850" y2="34"/>
+        <line x1="500" y1="230" x2="92" y2="300"/>
+        <line x1="500" y1="230" x2="908" y2="300"/>
+        <line x1="500" y1="230" x2="220" y2="450"/>
+        <line x1="500" y1="230" x2="780" y2="450"/>
+      </g>
+      <rect x="330" y="110" width="340" height="240" rx="16" fill="#5b6169" stroke="#151310" stroke-width="8"/>
+      <rect x="348" y="128" width="304" height="204" fill="#7cc444" stroke="#151310" stroke-width="5"/>
+      <g fill="#2f6b22">
+        <rect x="372" y="152" width="150" height="18"/>
+        <rect x="372" y="186" width="240" height="18"/>
+        <rect x="372" y="220" width="120" height="18"/>
+        <rect x="372" y="254" width="200" height="18"/>
+        <rect x="372" y="288" width="92" height="18"/>
+      </g>
+    </svg>
+    <div class="itxt"></div>
+  </section>
+
+  <section class="islide" data-lines='["在开始之前——","你唯一的动作是「投递」；"]'>
+    <svg viewBox="0 0 1000 440" xmlns="http://www.w3.org/2000/svg">
+      <rect x="290" y="26" width="420" height="270" rx="16" fill="#5b6169" stroke="#151310" stroke-width="8"/>
+      <rect x="308" y="44" width="384" height="234" fill="#7cc444" stroke="#151310" stroke-width="5"/>
+      <g fill="#2f6b22">
+        <rect x="336" y="72" width="120" height="52"/>
+        <rect x="474" y="72" width="190" height="52"/>
+        <rect x="336" y="138" width="190" height="52"/>
+        <rect x="544" y="138" width="120" height="52"/>
+        <rect x="336" y="204" width="328" height="46"/>
+      </g>
+      <path d="M446 296 L554 296 L578 342 L422 342 Z" fill="#4d545c" stroke="#151310" stroke-width="7"/>
+      <rect x="376" y="342" width="248" height="16" rx="8" fill="#5b6169" stroke="#151310" stroke-width="6"/>
+      <text x="500" y="416" text-anchor="middle" font-size="32" font-weight="bold" fill="#f3ead6" font-family="sans-serif"
+            stroke="#151310" stroke-width="6" paint-order="stroke" letter-spacing="14">海 投 直 聘</text>
+    </svg>
+    <div class="itxt"></div>
+    <button id="startBtn">坐下，开始</button>
+  </section>
+
+  <div class="idots" id="idots"></div>
+  <div id="nextHint">点击任意处继续 ▸</div>
+</div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+
+/* ================= 格式化 ================= */
+function fmt(n){
+  n = Math.floor(n);
+  if(n < 1e4) return n.toLocaleString('en-US');
+  if(n < 1e8) return (n/1e4).toFixed(2).replace(/\.?0+$/,'') + '万';
+  return (n/1e8).toFixed(2) + '亿';
+}
+function motFmt(m){ return m < 1000 ? m.toFixed(1) : fmt(m); }
+
+/* ================= 状态 ================= */
+const S = {
+  subs:0, mot:0, pos:0, rounds:0,
+  speed:0, quality:0, interview:0,
+  offer:false, mailRead:false, pend:0, started:false,
+  aiOn:false, aiIv:0, aiSubs:0, aiLast:0, aiQi:-1, aiSkill:false, snakeBest:0
+};
+
+/* ================= 反馈池 ================= */
+const NAME = {
+  read:'已读不回', thanks:'感谢信：简历已收到', no:'不合适', pool:'已进入人才库',
+  auto:'系统自动回复', off:'岗位已下线', dup:'已投递过该岗位', hrleft:'HR 已离职',
+  view:'简历被查看', hi:'HR 打招呼', folio:'索要作品集', exam:'约笔试',
+  i1:'一面被拒', i2:'二面被拒', i3:'终面被拒', bg:'进入背调'
+};
+const MOT = {view:1, hi:3, folio:5, exam:8, i1:15, i2:25, i3:40, bg:60};
+const ROUND = {i1:1, i2:1, i3:1};
+const ORDER = {bg:0,i3:1,i2:2,i1:3,exam:4,folio:5,hi:6,view:7,read:8,thanks:9,no:10,pool:11,auto:12,off:13,dup:14,hrleft:15};
+const CO = ['黑洞科技','卷心菜互娱','福报集团','996网络','秃头程序','韭菜金融','三体互联','煎饼大数据','赛博水泥','元宇宙房产','五险一饼','加班宝','期权海洋','皮包咨询'];
+const co = () => CO[(Math.random()*CO.length)|0];
+
+/* ================= 三款软件 = 三线技能树（数值已放缓） ================= */
+const LINES = {
+  speed: {name:'电脑管家', flavor:'软件提示：您的网速还有提升空间。', skills:[
+    {n:'连投', c:16, d:'每次点击投出 5 份简历'},
+    {n:'定时投递', c:80, d:'自动投递 1 份/秒'},
+    {n:'多平台同步', c:320, d:'自动投递 3 份/秒'},
+    {n:'投递矩阵', c:1600, d:'自动投递 10 份/秒'},
+    {n:'投递奇点', c:8000, d:'自动投递 100 份/秒'},
+    {n:'投递黑洞', c:32000, d:'自动投递 1000 份/秒'},
+    {n:'AI 代投', c:200, x:true, d:'额外技能：AI 替你操作，每 30 秒投 1 份'}
+  ]},
+  quality: {name:'简历工厂', flavor:'你的简历已经被改到第 47 版。', skills:[
+    {n:'简历优化', c:32, d:'正向反馈概率 +10%'},
+    {n:'关键词匹配', c:128, d:'正向反馈概率 +20%'},
+    {n:'精准投递', c:480, d:'「已读不回」出现率 -70%'},
+    {n:'内推通道', c:1280, d:'「HR打招呼」出现率 ×4'},
+    {n:'猎头合作', c:3200, d:'「约面」类反馈出现率 ×3'},
+    {n:'行业口碑', c:9600, d:'动力收益 ×2，投递速度减半'}
+  ]},
+  interview: {name:'被拒宝典', flavor:'被拒得越深，动力越多。', skills:[
+    {n:'笔试专精', c:48, d:'「约笔试」出现率 ×2'},
+    {n:'一面话术', c:160, d:'「一面被拒」出现率 ×1.5'},
+    {n:'二面策略', c:640, d:'「二面被拒」出现率 ×1.5'},
+    {n:'终面气场', c:2400, d:'「终面被拒」出现率 ×1.5'},
+    {n:'背调无忧', c:6400, d:'「进入背调」出现率 ×3，事件链背调必定通过'},
+    {n:'Offer收割', c:16000, d:'事件链最终判定通过率 +20%'}
+  ]}
+};
+
+/* ================= AI 代投（电脑管家的额外技能） ================= */
+const AI_IVS = [
+  {s:30,  n:'每 30 秒'},
+  {s:60,  n:'每 1 分钟'},
+  {s:300, n:'每 5 分钟'},
+  {s:900, n:'每 15 分钟'}
+];
+const AI_Q = [
+  'AI 已投出 1 份简历。为您匹配到 0 位 HR。',
+  'AI 建议：把「期望薪资」改成「面议」。',
+  'AI 正在重写您的简历……第 48 版。',
+  'AI 检测到该 HR 上次也没有回复您。',
+  'AI 已替您投递同一家公司第 %n 次。',
+  'AI 分析：您的核心竞争力是「抗压」。',
+  'AI 已为您勾选「接受调剂」「接受加班」「接受一切」。',
+  'AI 提示：该岗位已招满。AI 还是投了。',
+  'AI 找到 3 个新岗位，其中 2 个是同一个 HR 发的。',
+  'AI 说：这次很有希望。（AI 每次都这么说。）',
+  'AI 正在批量点击「一键投递」。',
+  'AI 询问是否降低期望 —— 是 / 已经是了。',
+  'AI 已为您关注了该企业的校招公众号。',
+  'AI 生成了一条占位回复，用于填补空白。'
+];
+
+/* ================= 数值计算 ================= */
+function clickMult(){ return S.speed >= 1 ? 5 : 1; }
+function autoRate(){ return [0,0,1,3,10,100,1000][S.speed] || 0; }
+function speedHalf(){ return S.quality >= 6 ? 0.5 : 1; }
+function motMult(){ return S.quality >= 6 ? 2 : 1; }
+function qualMult(){ return (S.quality>=1?1.1:1) * (S.quality>=2?1.2:1); }
+/* 荒诞机制：投得越多，世界越冷漠（已放缓） */
+function posRate(){
+  return 0.20 * qualMult() / (1 + Math.pow((S.subs+1)/15000, 0.4));
+}
+function lineSummary(key){
+  if(key === 'speed')
+    return '当前：点击 ×'+clickMult()+' · 自动 <b>'+autoRate()+'</b> 份/秒'+(S.quality>=6?' · 行业口碑：速度减半':'')
+      +'<br>AI 代投：'+(S.aiSkill ? (S.aiOn?'<b>运行中</b>（'+AI_IVS[aiIvIdx()].n+'一份）':'已解锁 · 待机') : '未解锁');
+  if(key === 'quality')
+    return '当前：正向概率 ×<b>'+qualMult().toFixed(2)+'</b> · 动力收益 ×<b>'+motMult()+'</b>'+(S.quality>=3?' · 已读不回 -70%':'')+(S.quality>=4?' · 内推通道：开启':'')+(S.quality>=5?' · 猎头合作：开启':'');
+  const p1 = Math.round((.5+.15*((S.interview>=1?1:0)+(S.interview>=2?1:0)))*100);
+  const p2 = Math.round((.5+.15*(S.interview>=3?1:0))*100);
+  const p3 = Math.round((.5+.15*(S.interview>=4?1:0))*100);
+  const p4 = S.interview>=5 ? 100 : 60;
+  const p5 = Math.round((.5+.2*(S.interview>=6?1:0))*100);
+  return '被拒加权：一面 ×'+(S.interview>=2?'1.5':'1')+' · 二面 ×'+(S.interview>=3?'1.5':'1')+' · 终面 ×'+(S.interview>=4?'1.5':'1')+' · 背调 ×'+(S.interview>=5?'3':'1')+'<br>事件链通过率：一面 <b>'+p1+'%</b> · 二面 <b>'+p2+'%</b> · 终面 <b>'+p3+'%</b> · 背调 <b>'+p4+'%</b> · Offer <b>'+p5+'%</b>';
+}
+/* ================= 音效 ================= */
+let AC = null, muteUntil = 0, lastDing = 0;
+function ac(){
+  if(!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if(AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, type, dur, vol, when, slide){
+  try{
+    const c = ac(), t = c.currentTime + (when||0);
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if(slide) o.frequency.exponentialRampToValueAtTime(slide, t+dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t+dur+0.05);
+  }catch(e){}
+}
+function canSnd(){ return Date.now() > muteUntil; }
+function sndClick(){ tone(160,'square',0.05,0.11,0,70); }
+function sndDing(){
+  const n = Date.now();
+  if(n - lastDing < 160 || !canSnd()) return;
+  lastDing = n;
+  tone(920,'sine',0.14,0.085); tone(1380,'sine',0.1,0.04);
+}
+function sndDingLong(){ if(!canSnd()) return; tone(660,'sine',0.5,0.1); tone(990,'sine',0.45,0.045); }
+function sndBuzz(){ tone(110,'sawtooth',0.32,0.075); }
+function sndRing(){ for(let r=0;r<3;r++){ tone(440,'sine',0.38,0.13,r*0.62); tone(480,'sine',0.38,0.13,r*0.62); } }
+
+/* ================= 光标 ================= */
+const cursorEl = $('#cursor');
+window.addEventListener('pointermove', e => {
+  cursorEl.style.transform = 'translate(' + e.clientX + 'px,' + e.clientY + 'px)';
+});
+document.addEventListener('pointerover', e => {
+  cursorEl.classList.toggle('hot', !!(e.target.closest && e.target.closest('button,.dicon,.srow,.fl,.wbar,#btnSend,.tbtn')));
+});
+window.addEventListener('pointerdown', e => {
+  cursorEl.classList.add('press');
+  try{ ac(); }catch(err){}
+}, {passive:true});
+window.addEventListener('pointerup', () => cursorEl.classList.remove('press'));
+
+/* ================= 桌上的鼠标：与真实指针联动 ================= */
+const mouseRig = document.getElementById('mouseRig');
+let rigTX = 0, rigTY = 0, rigX = 0, rigY = 0;
+function rigStep(){
+  rigX += (rigTX - rigX) * 0.14;
+  rigY += (rigTY - rigY) * 0.14;
+  if(mouseRig) mouseRig.setAttribute('transform', 'translate(' + rigX.toFixed(2) + ',' + rigY.toFixed(2) + ')');
+}
+window.addEventListener('pointermove', function(e){
+  const nx = (e.clientX / window.innerWidth) * 2 - 1;
+  const ny = (e.clientY / window.innerHeight) * 2 - 1;
+  rigTX = nx * 30;
+  rigTY = ny * 16;
+  rigStep();
+});
+(function rigLoop(){
+  rigStep();
+  requestAnimationFrame(rigLoop);
+})();
+
+/* ================= 窗口系统 ================= */
+const wins = {};
+let zTop = 10, mailIcon = null;
+
+/* 扁平矢量图标（南方公园式粗描边） */
+const ICON = {
+  zhipin: '<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2.5" fill="#c98a3c" stroke="#2a2622" stroke-width="2.2"/><rect x="2" y="12" width="20" height="3.2" fill="#8a5a24"/><path d="M9 7V5.6A1.6 1.6 0 0 1 10.6 4h2.8A1.6 1.6 0 0 1 15 5.6V7" fill="none" stroke="#2a2622" stroke-width="2.2"/></svg>',
+  quality: '<svg viewBox="0 0 24 24"><rect x="4" y="2.5" width="16" height="19" rx="2" fill="#fdf8ec" stroke="#2a2622" stroke-width="2.2"/><g stroke="#a2977c" stroke-width="2.2" stroke-linecap="round"><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></g></svg>',
+  speed: '<svg viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="13" rx="2" fill="#4f9fd0" stroke="#2a2622" stroke-width="2.2"/><rect x="5" y="6.2" width="8" height="7.6" fill="#bfe3f7"/><path d="M15.4 8l-3 4.6h2.3l-1.2 3.4 3.5-4.8h-2.2z" fill="#f6d24a" stroke="#2a2622" stroke-width="1.5"/><path d="M8 19.6h8" stroke="#2a2622" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  interview: '<svg viewBox="0 0 24 24"><rect x="4" y="2.5" width="16" height="19" rx="2" fill="#fdf8ec" stroke="#2a2622" stroke-width="2.2"/><g stroke="#a2977c" stroke-width="2" stroke-linecap="round"><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="10.4" x2="14" y2="10.4"/></g><circle cx="15" cy="16.4" r="5.2" fill="#c2453e" stroke="#2a2622" stroke-width="2"/><path d="M13.1 14.5l3.8 3.8M16.9 14.5l-3.8 3.8" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  mail: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2" fill="#fdf8ec" stroke="#2a2622" stroke-width="2.2"/><path d="M3.6 6.6L12 13l8.4-6.4" fill="none" stroke="#2a2622" stroke-width="2.2"/></svg>',
+  sys: '<svg viewBox="0 0 24 24"><path d="M2.5 6.6A2.1 2.1 0 0 1 4.6 4.5h4l2 2.6h6.8a2.1 2.1 0 0 1 2.1 2.1v8a2.1 2.1 0 0 1-2.1 2.1H4.6a2.1 2.1 0 0 1-2.1-2.1z" fill="#e0b558" stroke="#2a2622" stroke-width="2.2"/></svg>',
+  ai: '<svg viewBox="0 0 24 24"><path d="M12 6.4V4.2" stroke="#2a2622" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="3" r="1.7" fill="#f6d24a" stroke="#2a2622" stroke-width="1.9"/><rect x="3" y="6.4" width="18" height="12.4" rx="3.2" fill="#8f9fe0" stroke="#2a2622" stroke-width="2.2"/><circle cx="9" cy="12.6" r="1.8" fill="#2a2622"/><circle cx="15" cy="12.6" r="1.8" fill="#2a2622"/><path d="M9 16.6h6" stroke="#2a2622" stroke-width="2" stroke-linecap="round"/></svg>',
+  snake: '<svg viewBox="0 0 24 24"><path d="M4 17.5h9.5a3.6 3.6 0 0 0 0-7.2H9a3.2 3.2 0 0 1 0-6.4h6.2" fill="none" stroke="#2a2622" stroke-width="5.4" stroke-linecap="round"/><path d="M4 17.5h9.5a3.6 3.6 0 0 0 0-7.2H9a3.2 3.2 0 0 1 0-6.4h6.2" fill="none" stroke="#7cc444" stroke-width="2.6" stroke-linecap="round"/><circle cx="17.6" cy="4.6" r="1.5" fill="#2a2622"/></svg>'
+};
+
+const APPS = {
+  zhipin:   {name:'海投直聘', icon:ICON.zhipin, w:64, h:79, x:15, y:6,  color:'#6fb03c', render:renderZhipin},
+  quality:  {name:'简历工厂', icon:ICON.quality, w:48, h:67, x:31, y:15, color:'#e0903a', render:function(b){renderLineWin(b,'quality');}},
+  speed:    {name:'电脑管家', icon:ICON.speed, w:48, h:67, x:27, y:11, color:'#4f9fd0', render:function(b){renderLineWin(b,'speed');}},
+  interview:{name:'被拒宝典', icon:ICON.interview, w:48, h:67, x:35, y:19, color:'#c9695f', render:function(b){renderLineWin(b,'interview');}},
+  snake:    {name:'贪吃蛇.exe', icon:ICON.snake, w:40, h:64, x:47, y:22, color:'#6fb03c', render:renderSnake},
+  mail:     {name:'邮件',     icon:ICON.mail, w:52, h:67, x:24, y:13, color:'#2b4a73', render:renderMail},
+  sys:      {name:'我的电脑', icon:ICON.sys, w:46, h:60, x:34, y:13, color:'#7d8a97', render:renderSys}
+};
+
+function openApp(id){
+  let w = wins[id];
+  if(!w){
+    const cfg = APPS[id];
+    const el = document.createElement('div');
+    el.className = 'win';
+    el.style.left = cfg.x + '%'; el.style.top = cfg.y + '%';
+    el.style.width = cfg.w + '%'; el.style.height = cfg.h + '%';
+    el.innerHTML = '<div class="wbar"><span class="wic">'+cfg.icon+'</span><span class="wt">'+cfg.name+'</span><button class="wclose">✕</button></div><div class="wbody"></div>';
+    el.querySelector('.wbar').style.background = cfg.color || '#6fb03c';
+    $('#wins').appendChild(el);
+    w = wins[id] = {el:el, body:el.querySelector('.wbody'), cfg:cfg};
+    el.querySelector('.wclose').addEventListener('click', function(e){ e.stopPropagation(); closeApp(id); });
+    el.addEventListener('pointerdown', function(){ focusApp(id); });
+    makeDrag(el);
+    cfg.render(w.body);
+  }
+  focusApp(id);
+  renderTaskApps();
+  return w;
+}
+function closeApp(id){
+  const w = wins[id]; if(!w) return;
+  if(id === 'snake') snkStop();
+  w.el.remove(); delete wins[id];
+  renderTaskApps();
+}
+function focusApp(id){
+  for(const k in wins) wins[k].el.classList.toggle('focus', k === id);
+  const w = wins[id];
+  if(w){
+    zTop = Math.min(zTop + 1, 36);
+    w.el.style.zIndex = zTop;
+  }
+  renderTaskApps();
+}
+function makeDrag(el){
+  const bar = el.querySelector('.wbar');
+  let dragging = false, sx = 0, sy = 0, ox = 0, oy = 0;
+  bar.addEventListener('pointerdown', function(e){
+    if(e.target.closest('.wclose')) return;
+    dragging = true;
+    sx = e.clientX; sy = e.clientY;
+    ox = parseFloat(el.style.left) || 0; oy = parseFloat(el.style.top) || 0;
+    try{ bar.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  bar.addEventListener('pointermove', function(e){
+    if(!dragging) return;
+    const d = $('#desktop').getBoundingClientRect();
+    const nl = ox + (e.clientX - sx) / d.width * 100;
+    const nt = oy + (e.clientY - sy) / d.height * 100;
+    el.style.left = Math.max(-8, Math.min(94, nl)) + '%';
+    el.style.top  = Math.max(0, Math.min(90, nt)) + '%';
+  });
+  bar.addEventListener('pointerup', function(){ dragging = false; });
+}
+function renderTaskApps(){
+  const c = $('#tbApps'); c.innerHTML = '';
+  for(const id in APPS){
+    if(!wins[id]) continue;
+    const b = document.createElement('button');
+    b.className = 'tbtn' + (wins[id].el.classList.contains('focus') ? ' on' : '');
+    b.textContent = APPS[id].name;
+    (function(x){ b.addEventListener('click', function(){ openApp(x); }); })(id);
+    c.appendChild(b);
+  }
+}
+
+/* ================= 桌面图标 ================= */
+const ICONS = [
+  {id:'zhipin',   label:'海投直聘'},
+  {id:'quality',  label:'简历工厂'},
+  {id:'speed',    label:'电脑管家'},
+  {id:'snake',    label:'贪吃蛇'},
+  {id:'interview',label:'被拒宝典'},
+  {id:'mail',     label:'邮件'},
+  {id:'sys',      label:'我的电脑'}
+];
+function buildIcons(){
+  const d = $('#desktop');
+  ICONS.forEach(function(it, i){
+    const el = document.createElement('div');
+    el.className = 'dicon';
+    el.innerHTML = '<div class="ic">'+APPS[it.id].icon+'<span class="badge"></span></div><div class="lb">'+it.label+'</div>';
+    el.addEventListener('click', function(){ openApp(it.id); });
+    d.insertBefore(el, $('#wins'));
+    if(it.id === 'mail') mailIcon = el;
+  });
+  layoutIcons();
+}
+/* 图标排版：按实测像素来，行距随块高自适应（否则窗口变小时下一行会盖住上一行文字） */
+function layoutIcons(){
+  const d = $('#desktop'); if(!d) return;
+  const els = [].slice.call(d.querySelectorAll('.dicon'));
+  if(!els.length) return;
+  const deskW = d.clientWidth || 1, deskH = d.clientHeight || 1;
+  const perCol = Math.ceil(els.length / 2);
+  const baseFs = parseFloat(getComputedStyle($('#screen')).fontSize) || 8;
+  const setFs = function(fs){ els.forEach(function(el){ el.style.fontSize = fs + 'px'; }); };
+  const size = function(){ const r = els[0].getBoundingClientRect(); return {w:r.width, h:r.height}; };
+  setFs(baseFs);
+  let s = size(), k = 1;
+  /* 横向：两列必须待在左侧，别被 15% 处的「海投直聘」窗口压住 */
+  const budgetW = deskW * 0.135;
+  if(s.w * 2 + 6 > budgetW) k = Math.min(k, (budgetW - 6) / (s.w * 2));
+  /* 纵向：perCol 行得放得进桌面高度 */
+  const availH = deskH - 6;
+  if(s.h * perCol + 4 * (perCol - 1) > availH) k = Math.min(k, (availH - 4 * (perCol - 1)) / (s.h * perCol));
+  k = Math.max(0.5, Math.min(1, k));
+  if(k < 1){ setFs(baseFs * k); s = size(); }
+  const gap = Math.max(4, s.h * 0.16);
+  const stepY = Math.max(s.h * 0.5, Math.min(s.h + gap, (deskH - 4 - s.h) / Math.max(1, perCol - 1)));
+  const pitch = s.w + Math.max(4, s.w * 0.16);
+  const x0 = Math.max(1, deskW * 0.02);
+  els.forEach(function(el, i){
+    el.style.left = Math.round(x0 + Math.floor(i / perCol) * pitch) + 'px';
+    el.style.top = Math.round(3 + (i % perCol) * stepY) + 'px';
+  });
+}
+function updateBadge(){
+  if(!mailIcon) return;
+  mailIcon.classList.toggle('alert', S.offer && !S.mailRead);
+}
+
+/* ================= 通知 ================= */
+function note(text, warn){
+  const n = document.createElement('div');
+  n.className = 'note' + (warn ? ' warn' : '');
+  n.innerHTML = text;
+  $('#notes').appendChild(n);
+  while($('#notes').children.length > 4) $('#notes').firstChild.remove();
+  setTimeout(function(){
+    n.style.transition = 'opacity .5s'; n.style.opacity = 0;
+    setTimeout(function(){ n.remove(); }, 520);
+  }, 4300);
+}
+
+/* ================= 信息流 ================= */
+const feedBuf = [];
+function addLine(cls, html){
+  feedBuf.push({cls:cls, html:html});
+  if(feedBuf.length > 80) feedBuf.shift();
+  if(wins.zhipin) appendFeed(cls, html);
+}
+function appendFeed(cls, html){
+  const list = wins.zhipin.el.querySelector('#zfeed');
+  if(!list) return;
+  const d = document.createElement('div');
+  d.className = 'fl ' + cls;
+  d.innerHTML = html;
+  list.appendChild(d);
+  while(list.children.length > 80) list.removeChild(list.firstChild);
+  list.scrollTop = list.scrollHeight;
+}
+
+/* ================= 软件界面 ================= */
+function renderZhipin(body){
+  body.innerHTML =
+    '<div class="zhead">海投直聘 <span class="zsub" id="zSub"></span></div>'+
+    '<div class="zbtnwrap"><button id="btnSend">投递</button><div class="zhint" id="zHint"></div></div>'+
+    '<div class="zlast" id="zLast">点上面的【投递】，等待第一封回信……</div>'+
+    '<div class="ztitle">反馈信息流</div><div class="zfeed" id="zfeed"></div>';
+  body.querySelector('#btnSend').addEventListener('click', press);
+  const list = body.querySelector('#zfeed');
+  for(let i = feedBuf.length - 1; i >= 0; i--){
+    const d = document.createElement('div');
+    d.className = 'fl ' + feedBuf[i].cls;
+    d.innerHTML = feedBuf[i].html;
+    list.appendChild(d);
+  }
+  list.scrollTop = list.scrollHeight;
+  refreshZhipin();
+}
+function refreshZhipin(){
+  const w = wins.zhipin; if(!w) return;
+  const sub = w.body.querySelector('#zSub'), hint = w.body.querySelector('#zHint');
+  if(sub) sub.textContent = '投递 '+fmt(S.subs)+' 份';
+  if(hint) hint.textContent = '每次 '+Math.max(1,Math.round(clickMult()*speedHalf()))+' 份'+(autoRate()?' · 自动 '+autoRate()+' 份/秒':'')+' · 空格键也可以';
+}
+function renderLineWin(body, key){
+  const L = LINES[key], lv = S[key];
+  let rows = '';
+  L.skills.forEach(function(sk, i){
+    const extra = !!sk.x;
+    const owned = extra ? !!S.aiSkill : (i < lv);
+    const lock = extra ? false : (i > lv);
+    const cls = owned ? 'owned' : (lock ? 'locked' : 'avail');
+    let bt;
+    if(owned) bt = '<button class="buy" disabled>已解锁 ✓</button>';
+    else if(lock) bt = '<button class="buy" disabled>需先解锁上一级</button>';
+    else bt = '<button class="buy" data-line="'+key+'" data-i="'+i+'"'+(S.mot < sk.c ? ' disabled' : '')+'>解锁 · '+sk.c+' 动力</button>';
+    rows += '<div class="srow '+cls+'" data-i="'+i+'"><div><div class="nm">'+(extra?'<span class="xtag">额外</span>':'')+sk.n+'</div><div class="ds">'+sk.d+'</div></div>'+bt+'</div>';
+  });
+  const panel = (key === 'speed' && S.aiSkill) ? aiPanelHTML() : '';
+  body.innerHTML =
+    '<div class="wflavor">'+L.flavor+'</div>'+
+    '<div class="wstat">动力 <b>'+motFmt(S.mot)+'</b><br>'+lineSummary(key)+'</div>'+
+    rows + panel + '<div style="height:.7em"></div>';
+  if(panel){ bindAiPanel(body); refreshAiPanel(); }
+}
+function refreshLineWins(){
+  for(const k in LINES){
+    const w = wins[k]; if(!w) continue;
+    const lv = S[k], L = LINES[k];
+    const btns = w.body.querySelectorAll('.buy[data-i]');
+    btns.forEach(function(b){
+      const i = +b.dataset.i, sk = L.skills[i];
+      if(!sk || sk.x) return;
+      b.disabled = S.mot < sk.c;
+      const nm = b.textContent;
+      if(S.mot < sk.c){ b.textContent = '动力不足 · ' + sk.c; }
+      else if(nm.indexOf('动力') === 0 || nm.indexOf('动力不足') === 0){ b.textContent = '解锁 · ' + sk.c + ' 动力'; }
+    });
+    const flip = w.body.querySelector('.wstat');
+    if(flip) flip.innerHTML = '动力 <b>'+motFmt(S.mot)+'</b><br>'+lineSummary(k);
+    const rows = w.body.querySelectorAll('.srow');
+    rows.forEach(function(r, i){
+      if(L.skills[i] && L.skills[i].x) return;
+      r.classList.toggle('owned', i < lv);
+      r.classList.toggle('avail', i === lv);
+      r.classList.toggle('locked', i > lv);
+    });
+    if(lv !== w._lv || aiReady() !== w._ai){
+      w._lv = lv; w._ai = aiReady();
+      const sc = w.body.scrollTop;
+      renderLineWin(w.body, k);
+      w.body.scrollTop = sc;
+    }
+  }
+}
+function renderSys(body){
+  const a = S.subs >= 5e5, b = S.pos >= 5000, c = S.rounds >= 100;
+  body.innerHTML =
+    '<div class="sysrow"><i>投递数</i><b id="sysSubs">'+fmt(S.subs)+'</b></div>'+
+    '<div class="sysrow"><i>动力</i><b class="g" id="sysMot">'+motFmt(S.mot)+'</b></div>'+
+    '<div class="sysrow"><i>被拒轮次</i><b id="sysRounds">'+fmt(S.rounds)+'</b></div>'+
+    '<div class="sysrow"><i>AI 代投</i><b id="sysAi">'+(S.aiSkill ? (S.aiOn ? ('运行中 · '+fmt(S.aiSubs)+' 份') : ('已解锁 · 待机'+(S.aiSubs?(' · '+fmt(S.aiSubs)+' 份'):''))) : '未解锁（电脑管家）')+'</b></div>'+
+    '<div class="sysrow"><i>摸鱼纪录</i><b id="sysSnk">'+S.snakeBest+' 封回复</b></div>'+
+    '<div class="sysrow"><i>Offer 事件链</i><b id="sysOffer">'+(S.offer?'已完成':(a&&b&&c?'条件齐备':'进行中'))+'</b></div>'+
+    '<div class="sysnote">事件链条件：投递 ≥ 50万 '+(a?'✓':'✗')+' · 正向反馈 ≥ 5000 '+(b?'✓':'✗')+' · 被拒轮次 ≥ 100 '+(c?'✓':'✗')+'<br>动力每小时衰减 10%，只用于解锁软件功能。</div>'+
+    '<div class="sysbtns"><button id="sysSave">立即保存</button><button class="danger" id="sysReset">重置进度</button></div>';
+  body.querySelector('#sysSave').addEventListener('click', function(){ save(); note('已保存进度。'); });
+  body.querySelector('#sysReset').addEventListener('click', function(){
+    if(confirm('确定重置全部进度？此操作不可撤销。')){
+      try{ localStorage.removeItem(KEY); }catch(e){}
+      location.reload();
+    }
+  });
+}
+function refreshSys(){
+  const w = wins.sys; if(!w) return;
+  const b = w.body;
+  const ss = b.querySelector('#sysSubs'); if(!ss) return;
+  const a = S.subs >= 5e5, bb = S.pos >= 5000, c = S.rounds >= 100;
+  ss.textContent = fmt(S.subs);
+  b.querySelector('#sysMot').textContent = motFmt(S.mot);
+  b.querySelector('#sysRounds').textContent = fmt(S.rounds);
+  const ea = b.querySelector('#sysAi');
+  if(ea) ea.textContent = S.aiSkill
+    ? (S.aiOn ? ('运行中 · '+fmt(S.aiSubs)+' 份') : ('已解锁 · 待机'+(S.aiSubs?(' · '+fmt(S.aiSubs)+' 份'):'')))
+    : '未解锁（电脑管家）';
+  const es = b.querySelector('#sysSnk');
+  if(es) es.textContent = S.snakeBest + ' 封回复';
+  b.querySelector('#sysOffer').textContent = S.offer ? '已完成' : (a&&bb&&c ? '条件齐备' : '进行中');
+}
+/* ================= AI 代投（电脑管家的额外技能） ================= */
+function aiIvIdx(){ return Math.min(AI_IVS.length-1, Math.max(0, S.aiIv|0)); }
+function aiWaitMs(){ return AI_IVS[aiIvIdx()].s * 1000; }
+function aiReady(){ return !!S.aiSkill; }
+function leftTxt(ms){
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return s >= 120 ? Math.round(s / 60) + ' 分钟' : s + ' 秒';
+}
+function aiPanelHTML(){
+  let ivs = '';
+  AI_IVS.forEach(function(v, i){
+    ivs += '<button class="aiiv'+(i===aiIvIdx()?' on':'')+'" data-iv="'+i+'">'+v.n+'</button>';
+  });
+  return '<div class="aipanel'+(S.aiOn?' ai':'')+'" id="aiPanel">'+
+      '<div class="aipanelhd">AI 代投 <span>· 额外技能</span></div>'+
+      '<div class="airow">'+
+        '<div class="aistate"><span class="aidot"></span><span id="aiState">'+(S.aiOn?'AI 代投中':'AI 待机')+'</span>'+
+          '<i id="aiSub"> · 已代投 '+fmt(S.aiSubs)+' 份</i></div>'+
+        '<button class="aibtn'+(S.aiOn?' on':'')+'" id="aiToggle">'+(S.aiOn?'停止':'启动')+'</button>'+
+      '</div>'+
+      '<div class="aiivs">'+ivs+'</div>'+
+      '<div class="aiinfo" id="aiInfo"></div>'+
+      '<div class="ailog" id="aiLog"><div><b>AI</b> 已就绪。等待您的许可。</div></div>'+
+    '</div>';
+}
+function bindAiPanel(body){
+  const tg = body.querySelector('#aiToggle');
+  if(tg) tg.addEventListener('click', aiToggle);
+  [].slice.call(body.querySelectorAll('.aiiv')).forEach(function(b){
+    b.addEventListener('click', function(){ aiSetIv(+b.dataset.iv); });
+  });
+}
+function aiLogLine(text){
+  const w = wins.speed; if(!w) return;
+  const box = w.el.querySelector('#aiLog'); if(!box) return;
+  const d = document.createElement('div');
+  d.innerHTML = text;
+  box.insertBefore(d, box.firstChild);
+  while(box.children.length > 14) box.removeChild(box.lastChild);
+}
+function refreshAiPanel(){
+  const w = wins.speed; if(!w) return;
+  const b = w.body;
+  const panel = b.querySelector('#aiPanel'); if(!panel) return;
+  panel.classList.toggle('ai', !!S.aiOn);
+  const st = b.querySelector('#aiState'); if(st) st.textContent = S.aiOn ? 'AI 代投中' : 'AI 待机';
+  const sb = b.querySelector('#aiSub'); if(sb) sb.textContent = ' · 已代投 ' + fmt(S.aiSubs) + ' 份';
+  const tg = b.querySelector('#aiToggle');
+  if(tg){ tg.textContent = S.aiOn ? '停止' : '启动'; tg.classList.toggle('on', !!S.aiOn); }
+  const info = b.querySelector('#aiInfo');
+  if(info){
+    if(!S.started) info.innerHTML = '还没有开始今天的工作。';
+    else if(S.offer) info.innerHTML = '你已经拿到 Offer 了。AI 说它也该休息了。';
+    else if(S.aiOn) info.innerHTML = 'AI 正在盯着招聘网站。下一份预计 <b>' + leftTxt(aiWaitMs() - (Date.now() - S.aiLast)) + '</b> 后投出。';
+    else info.innerHTML = 'AI 停着。你的简历也就停着。';
+  }
+  [].slice.call(b.querySelectorAll('.aiiv')).forEach(function(x, i){ x.classList.toggle('on', i === aiIvIdx()); });
+}
+function aiToggle(){
+  if(!S.started || !aiReady()) return;
+  S.aiOn = !S.aiOn;
+  S.aiLast = Date.now();
+  if(S.aiOn){
+    aiLogLine('<b>AI</b> 已接管投递。您可以去做别的事了（并没有别的事）。');
+    note('AI 代投：开始，' + AI_IVS[aiIvIdx()].n + '一份。');
+  }else{
+    aiLogLine('<b>AI</b> 已停止。简历们回到你手上。');
+    note('AI 代投：已停止。');
+  }
+  sndClick();
+  refreshAiPanel(); refreshTaskAi(); save();
+}
+function aiSetIv(i){
+  if(!S.started || !aiReady() || i === aiIvIdx()) return;
+  S.aiIv = i; S.aiLast = Date.now();
+  aiLogLine('<b>AI</b> 节奏已调整为「' + AI_IVS[i].n + '一份」。');
+  sndClick();
+  refreshAiPanel(); refreshTaskAi(); save();
+}
+function refreshTaskAi(){
+  const wrap = $('#tbAiWrap'); if(!wrap) return;
+  const show = aiReady();
+  wrap.style.display = show ? '' : 'none';
+  if(!show){ S.aiOn = false; return; }
+  const el = $('#tbAi');
+  el.classList.toggle('on', !!S.aiOn);
+  let txt;
+  if(!S.aiOn) txt = 'AI 待机';
+  else{
+    const s = Math.max(0, Math.ceil((aiWaitMs() - (Date.now() - S.aiLast)) / 1000));
+    txt = 'AI ' + (s >= 120 ? Math.round(s/60) + 'm' : s + 's');
+  }
+  if(el.textContent !== txt) el.textContent = txt;
+}
+function aiTick(){
+  if(S.started && S.aiOn && !S.offer){
+    const now = Date.now();
+    if(!S.aiLast) S.aiLast = now;
+    if(now - S.aiLast >= aiWaitMs()){ S.aiLast = now; aiSubmit(); }
+  }
+  if(S.aiOn || wins.speed){ refreshTaskAi(); refreshAiPanel(); }
+}
+function aiSubmit(){
+  S.aiSubs++;
+  doSubmissions(1, true);
+  if(S.aiSubs % 3 === 1){
+    let qi = (Math.random()*AI_Q.length)|0;
+    if(qi === S.aiQi) qi = (qi + 1 + ((Math.random()*(AI_Q.length-1))|0)) % AI_Q.length;
+    S.aiQi = qi;
+    const q = AI_Q[qi].replace('%n', String((Math.random()*7|0)+3));
+    aiLogLine('<b>AI</b> ' + q);
+    addLine('sys', '<span class="aitag">AI</span>' + q);
+  }
+}
+
+/* ================= 贪吃蛇（摸鱼小游戏） ================= */
+const SNK = {
+  cols:24, rows:16, on:false, dead:false, timer:null,
+  body:[], dir:[1,0], nd:[1,0], food:null, score:0, rewarded:false, deadMsg:''
+};
+const SNK_DEAD = [
+  '蛇撞墙了。和你的简历一样。',
+  '本局结束。HR 依然没有回复。',
+  '你死了。岗位还在招。',
+  '断在这里。流程终止。',
+  '再投一次吧。蛇也是。'
+];
+function snkSpeed(){ return Math.max(62, 150 - SNK.score * 3); }
+function renderSnake(body){
+  body.innerHTML =
+    '<div class="snk"><span>贪吃蛇.exe <i>v1.2 · 2003</i></span><span class="snkmeta" id="snkMeta"></span></div>'+
+    '<div class="snkwrap"><canvas id="snkCv"></canvas></div>'+
+    '<div class="snkfoot">'+
+      '<div class="snkbtns"><button class="snkbtn" id="snkStart">暂停</button><button class="snkbtn alt" id="snkRe">重开</button></div>'+
+      '<div id="snkInfo"></div>'+
+    '</div>';
+  body.querySelector('#snkStart').addEventListener('click', snkPause);
+  body.querySelector('#snkRe').addEventListener('click', function(){ snkReset(); snkRun(); });
+  snkReset();
+  snkFit();
+  setTimeout(snkFit, 60);
+  snkButtons();
+  refreshSnakeMeta();
+}
+function snkFit(){
+  const w = wins.snake; if(!w) return;
+  const cv = w.el.querySelector('#snkCv'); if(!cv) return;
+  const wrap = w.el.querySelector('.snkwrap'); if(!wrap) return;
+  const aw = wrap.clientWidth - 14, ah = wrap.clientHeight - 14;
+  if(aw <= 10 || ah <= 10) return;
+  const h = Math.max(60, Math.min(ah, aw / 1.5));
+  const wd = h * 1.5;
+  cv.style.width = Math.floor(wd) + 'px';
+  cv.style.height = Math.floor(h) + 'px';
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.floor(wd * dpr);
+  cv.height = Math.floor(h * dpr);
+  snkDraw();
+}
+function snkReset(){
+  SNK.body = [{x:6,y:8},{x:5,y:8},{x:4,y:8}];
+  SNK.dir = [1,0]; SNK.nd = [1,0];
+  SNK.score = 0; SNK.rewarded = false; SNK.dead = false;
+  SNK.food = snkNewFood();
+}
+function snkNewFood(){
+  for(let t=0;t<400;t++){
+    const p = {x:(Math.random()*SNK.cols)|0, y:(Math.random()*SNK.rows)|0};
+    if(!SNK.body.some(function(s){ return s.x===p.x && s.y===p.y; })) return p;
+  }
+  return {x:1,y:1};
+}
+function snkRun(){
+  clearInterval(SNK.timer);
+  if(!wins.snake) return;
+  SNK.on = true;
+  SNK.timer = setInterval(snkStep, snkSpeed());
+  snkButtons(); refreshSnakeMeta();
+}
+function snkStop(){
+  clearInterval(SNK.timer);
+  SNK.timer = null;
+  SNK.on = false;
+}
+function snkPause(){
+  const w = wins.snake; if(!w) return;
+  if(SNK.dead){ snkReset(); snkRun(); return; }
+  if(SNK.on){ snkStop(); }else{ snkRun(); }
+  snkDraw(); snkButtons(); refreshSnakeMeta();
+}
+function snkButtons(){
+  const w = wins.snake; if(!w) return;
+  const b = w.el.querySelector('#snkStart');
+  if(b) b.textContent = SNK.dead ? '再来一局' : (SNK.on ? '暂停' : (SNK.score > 0 ? '继续' : '开始'));
+}
+function snkTurn(d){
+  if(!SNK.on) return;
+  if(d[0] === -SNK.dir[0] && d[1] === -SNK.dir[1]) return;   /* 不能直接反向 */
+  SNK.nd = d;
+}
+function snkStep(){
+  if(!wins.snake || !SNK.on) return;
+  SNK.dir = SNK.nd;
+  const h = SNK.body[0];
+  const nx = h.x + SNK.dir[0], ny = h.y + SNK.dir[1];
+  const willEat = !!SNK.food && nx === SNK.food.x && ny === SNK.food.y;
+  const lim = willEat ? SNK.body.length : SNK.body.length - 1;   /* 吃到东西时尾巴不会挪走 */
+  const hitWall = nx < 0 || ny < 0 || nx >= SNK.cols || ny >= SNK.rows;
+  const hitSelf = SNK.body.some(function(s, i){ return i < lim && s.x === nx && s.y === ny; });
+  if(hitWall || hitSelf){ snkOver(); return; }
+  SNK.body.unshift({x:nx, y:ny});
+  if(willEat){
+    SNK.score++;
+    SNK.food = snkNewFood();
+    sndDing();
+    if(SNK.score > S.snakeBest){
+      S.snakeBest = SNK.score;
+      if(!SNK.rewarded){
+        SNK.rewarded = true;
+        S.mot += 5;
+        note('摸鱼奖励：+5 动力。HR 不会知道的。');
+        renderStats(); save();
+      }
+    }
+    clearInterval(SNK.timer);
+    SNK.timer = setInterval(snkStep, snkSpeed());
+  }else{
+    SNK.body.pop();
+  }
+  snkDraw(); refreshSnakeMeta();
+}
+function snkOver(){
+  snkStop();
+  SNK.dead = true;
+  SNK.deadMsg = SNK_DEAD[(Math.random()*SNK_DEAD.length)|0];
+  sndBuzz();
+  snkDraw(); snkButtons(); refreshSnakeMeta();
+}
+function refreshSnakeMeta(){
+  const w = wins.snake; if(!w) return;
+  const m = w.el.querySelector('#snkMeta'), info = w.el.querySelector('#snkInfo');
+  if(m){
+    const ai = (S.aiSkill && S.aiOn) ? ('AI 正在替你投递 · ' + fmt(S.aiSubs) + ' 份') : 'AI 没在投，你得自己投';
+    m.textContent = '最高 ' + S.snakeBest + ' · ' + ai;
+  }
+  if(info){
+    let s = '吃到 <b>' + SNK.score + '</b> 封回复 · 蛇身 ' + SNK.body.length + ' 节';
+    if(SNK.dead) s += '<br>' + SNK.deadMsg + '　<b>空格</b> 重开';
+    else if(!SNK.on) s += '<br>已暂停。<b>空格</b> 继续。';
+    else s += '<br>方向键 / WASD 控制 · <b>空格</b> 暂停';
+    info.innerHTML = s;
+  }
+}
+/* 蛇/食物都用粗描边扁平画法，和场景一致 */
+function snkRR(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+function snkDraw(){
+  const w = wins.snake; if(!w) return;
+  const cv = w.el.querySelector('#snkCv'); if(!cv || !cv.width) return;
+  const ctx = cv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = cv.width / dpr, H = cv.height / dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const cw = W / SNK.cols, ch = H / SNK.rows;
+  ctx.fillStyle = '#fdf8ec'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#f2ebd8'; ctx.lineWidth = 1;
+  for(let x = 1; x < SNK.cols; x++){ ctx.beginPath(); ctx.moveTo(x*cw, 0); ctx.lineTo(x*cw, H); ctx.stroke(); }
+  for(let y = 1; y < SNK.rows; y++){ ctx.beginPath(); ctx.moveTo(0, y*ch); ctx.lineTo(W, y*ch); ctx.stroke(); }
+  /* 食物：一封 HR 的回复 */
+  if(SNK.food){
+    const fx = SNK.food.x*cw, fy = SNK.food.y*ch, p = Math.min(cw, ch)*0.17;
+    snkRR(ctx, fx+p, fy+p, cw-p*2, ch-p*2, Math.min(cw,ch)*0.16);
+    ctx.fillStyle = '#fffdf5'; ctx.fill();
+    ctx.lineWidth = Math.max(1.6, Math.min(cw,ch)*0.11); ctx.strokeStyle = '#2a2622'; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(fx+p*1.6, fy+p*1.7);
+    ctx.lineTo(fx+cw/2, fy+ch*0.56);
+    ctx.lineTo(fx+cw-p*1.6, fy+p*1.7);
+    ctx.lineWidth = Math.max(1.2, Math.min(cw,ch)*0.085); ctx.strokeStyle = '#8a7f68'; ctx.stroke();
+  }
+  /* 蛇 */
+  const lw = Math.max(1.6, Math.min(cw, ch)*0.13);
+  SNK.body.forEach(function(s, i){
+    const pad = Math.min(cw, ch)*0.09;
+    snkRR(ctx, s.x*cw+pad, s.y*ch+pad, cw-pad*2, ch-pad*2, Math.min(cw,ch)*0.3);
+    ctx.fillStyle = i === 0 ? '#5da32f' : (i % 2 ? '#7cc444' : '#6fb03c');
+    ctx.fill();
+    ctx.lineWidth = lw; ctx.strokeStyle = '#2a2622'; ctx.stroke();
+  });
+  if(SNK.body.length){
+    const h = SNK.body[0], hx = h.x*cw, hy = h.y*ch;
+    const ex = hx + cw*(0.5 + SNK.dir[0]*0.16), ey = hy + ch*(0.5 + SNK.dir[1]*0.16);
+    ctx.fillStyle = '#2a2622';
+    ctx.beginPath(); ctx.arc(ex, ey, Math.min(cw,ch)*0.11, 0, 6.3); ctx.fill();
+  }
+  if(!SNK.on && !SNK.dead){
+    ctx.fillStyle = 'rgba(253,248,236,.82)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#3f3a2e'; ctx.textAlign = 'center';
+    ctx.font = '700 ' + Math.round(H*0.09) + 'px sans-serif';
+    ctx.fillText(SNK.score > 0 ? '已暂停 · 按空格继续' : '按空格开始摸鱼', W/2, H/2);
+  }
+  if(SNK.dead){
+    ctx.fillStyle = 'rgba(253,248,236,.86)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#c2453e'; ctx.textAlign = 'center';
+    ctx.font = '700 ' + Math.round(H*0.1) + 'px sans-serif';
+    ctx.fillText('本局结束', W/2, H*0.42);
+    ctx.fillStyle = '#3f3a2e'; ctx.font = '400 ' + Math.round(H*0.065) + 'px sans-serif';
+    ctx.fillText(SNK.deadMsg, W/2, H*0.56);
+    ctx.fillStyle = '#8a7f68';
+    ctx.fillText('吃到 ' + SNK.score + ' 封回复 · 按空格重开', W/2, H*0.68);
+  }
+}
+
+function renderMail(body){
+  if(!S.offer){
+    body.innerHTML = '<div class="mail"><div class="mtitle">邮件 - 收件箱</div>'+
+      '<div class="mtool">文件(F)　编辑(E)　查看(V)　帮助(H)</div>'+
+      '<div class="mbody">暂无邮件。<br><br><span style="color:#666">（这个邮箱已经三个月没收到过正经回复了。）</span></div></div>';
+    return;
+  }
+  S.mailRead = true; updateBadge();
+  body.innerHTML = '<div class="mail"><div class="mtitle"><span>邮件 - [录用通知] - hr-system@blackhole.corp</span></div>'+
+    '<div class="mtool">文件(F)　编辑(E)　查看(V)　帮助(H)</div>'+
+    '<div class="mfields">'+
+    '<div><b>发件人:</b> hr-system@blackhole.corp</div>'+
+    '<div><b>收件人:</b> 你</div>'+
+    '<div><b>主题:</b> 【录用通知】请于周一 9:00 入职</div>'+
+    '</div>'+
+    '<div class="mbody">恭喜您，您已被录取。<br>岗位：简历筛选专员。<br><br>请开始筛选别人的简历。</div></div>';
+}
+
+/* 点击解锁（事件委托） */
+document.addEventListener('click', function(e){
+  const b = e.target.closest('.buy[data-line]');
+  if(b && !b.disabled) buy(b.dataset.line, +b.dataset.i);
+});
+/* ================= 解锁 ================= */
+function buy(key, i){
+  const sk = LINES[key].skills[i];
+  if(!sk || S.mot < sk.c) return;
+  if(sk.x){                                   /* 额外技能：不占用顺序，单独解锁 */
+    if(S.aiSkill) return;
+    S.mot -= sk.c;
+    S.aiSkill = true;
+    S.aiLast = Date.now();
+    sndDingLong();
+    note('已解锁：' + LINES[key].name + ' · ' + sk.n);
+    refreshLineWins(); refreshTaskAi(); renderStats(); save();
+    return;
+  }
+  if(S[key] !== i) return;
+  S.mot -= sk.c;
+  S[key]++;
+  sndDingLong();
+  note('已解锁：' + LINES[key].name + ' · ' + sk.n);
+  refreshLineWins(); renderStats(); save();
+}
+
+/* ================= 投递 ================= */
+function press(){
+  if(!S.started) return;
+  if(!wins.zhipin) openApp('zhipin');          /* 没开软件就顺手打开，免得投了看不见反馈 */
+  const btn = wins.zhipin ? wins.zhipin.el.querySelector('#btnSend') : null;
+  if(btn){ btn.classList.remove('hit'); void btn.offsetWidth; btn.classList.add('hit'); }
+  S.pend += clickMult() * speedHalf();
+  sndClick();
+  processPending();
+}
+function wpick(arr){
+  let tot = 0;
+  for(let i=0;i<arr.length;i++) tot += arr[i][1];
+  let r = Math.random() * tot;
+  for(let i=0;i<arr.length;i++){ r -= arr[i][1]; if(r <= 0) return arr[i][0]; }
+  return arr[0][0];
+}
+function doSubmissions(n, byAI){
+  if(n <= 0) return;
+  const rate = posRate();
+  const ivMul = S.quality >= 5 ? 3 : 1, hiMul = S.quality >= 4 ? 4 : 1, readMul = S.quality >= 3 ? 0.3 : 1;
+  const examMul = S.interview >= 1 ? 2 : 1;
+  const r1 = S.interview >= 2 ? 1.5 : 1, r2 = S.interview >= 3 ? 1.5 : 1, r3 = S.interview >= 4 ? 1.5 : 1;
+  const bgMul = S.interview >= 5 ? 3 : 1;
+  const posW = [['view',40],['hi',18*hiMul],['folio',9],['exam',5*examMul],['i1',2.5*ivMul*r1],['i2',1.2*ivMul*r2],['i3',0.55*ivMul*r3],['bg',0.22*bgMul]];
+  const negW = [['read',40*readMul],['thanks',18],['no',14],['pool',7],['auto',12],['off',7],['dup',8],['hrleft',4]];
+  const batch = {};
+  let posN = 0, mot = 0, rounds = 0, ivN = 0;
+  for(let k=0;k<n;k++){
+    if(Math.random() < rate){
+      const id = wpick(posW);
+      posN++;
+      const m = MOT[id]; mot += m;
+      if(ROUND[id]){ rounds++; ivN++; }
+      batch[id] = (batch[id]||0) + 1;
+      batch['$'+id] = (batch['$'+id]||0) + m;
+    }else{
+      const id = wpick(negW);
+      batch[id] = (batch[id]||0) + 1;
+    }
+  }
+  S.subs += n; S.pos += posN; S.rounds += rounds; S.mot += mot * motMult();
+  renderBatch(batch, byAI);
+  if(posN > 0) sndDing();
+  if(ivN > 0) sndDingLong();
+}
+function renderBatch(b, byAI){
+  const keys = Object.keys(b).filter(function(k){ return k[0] !== '$'; }).sort(function(a,c){ return ORDER[a]-ORDER[c]; });
+  const entries = [];
+  const tag = byAI ? '<span class="aitag">AI</span>' : '';
+  let rest = 0;
+  for(let i=0;i<keys.length;i++){
+    const id = keys[i], cnt = b[id];
+    if(entries.length < 3){
+      const isPos = MOT[id] !== undefined, isIv = !!ROUND[id];
+      const cls = isIv ? 'iv' : (isPos ? 'pos' : 'neg');
+      let html = tag + '<span class="co">「'+co()+'」</span>' + NAME[id] + (cnt>1 ? ' ×'+cnt : '');
+      let plain = (byAI ? 'AI · ' : '') + NAME[id] + (cnt>1 ? ' ×'+cnt : '');
+      if(isPos){
+        const g = fmt(b['$'+id]*motMult());
+        html += ' <span class="m">+'+g+' 动力</span>';
+        plain += '　+' + g + ' 动力';
+      }
+      entries.push({cls:cls, html:html, plain:plain});
+    }else rest += cnt;
+  }
+  entries.forEach(function(e){ addLine(e.cls, e.html); });
+  if(rest > 0) addLine('sys', '……另有 '+rest+' 条反馈已折叠');
+  /* 即时反馈：按钮上方气泡 + 按钮下方「最近反馈」条 */
+  if(entries.length){
+    const n = entries.length > 1 ? 2 : 1;
+    for(let i=0;i<n;i++) spawnChip(entries[i].cls, entries[i].plain);
+    setLast(entries[0].cls, entries[0].plain);
+  }
+}
+function spawnChip(cls, text){
+  const w = wins.zhipin; if(!w) return;
+  const wrap = w.el.querySelector('.zbtnwrap'); if(!wrap) return;
+  const btn = wrap.querySelector('#btnSend');
+  const c = document.createElement('div');
+  c.className = 'chip ' + cls;
+  c.textContent = text;
+  c.style.left = (16 + Math.random() * 68) + '%';
+  c.style.top = 'auto';
+  c.style.bottom = Math.round(wrap.clientHeight - (btn ? btn.offsetTop : 0) + 2) + 'px';
+  wrap.appendChild(c);
+  setTimeout(function(){ c.remove(); }, 1400);
+  const old = wrap.querySelectorAll('.chip');
+  for(let i = 0; i < old.length - 8; i++) old[i].remove();
+}
+function setLast(cls, text){
+  const w = wins.zhipin; if(!w) return;
+  const el = w.el.querySelector('#zLast'); if(!el) return;
+  el.className = 'zlast ' + cls + ' pop';
+  el.innerHTML = '最近反馈：<b>' + text + '</b>';
+  setTimeout(function(){ el.classList.remove('pop'); }, 340);
+}
+function processPending(){
+  const n = Math.floor(S.pend);
+  if(n > 0){ S.pend -= n; doSubmissions(n); }
+}
+
+/* ================= Offer 事件链 ================= */
+let chainBusy = false, chainCd = 0;
+function offerCheck(){
+  if(!S.started || S.offer || chainBusy) return;
+  if(Date.now() < chainCd) return;
+  if(S.subs >= 5e5 && S.pos >= 5000 && S.rounds >= 100) startChain();
+}
+function startChain(){
+  chainBusy = true;
+  addLine('chain','【事件链启动】你的简历编号 #'+(900000+((Math.random()*99999)|0))+' 进入了终审流程');
+  note('电话：未知号码…');
+  sndDingLong();
+  const stages = [
+    {k:'一面', p:.5 + .15*((S.interview>=1?1:0)+(S.interview>=2?1:0))},
+    {k:'二面', p:.5 + .15*(S.interview>=3?1:0)},
+    {k:'终面', p:.5 + .15*(S.interview>=4?1:0)},
+    {k:'背调', p:S.interview>=5 ? 1 : 0.6}
+  ];
+  let i = 0;
+  function step(){
+    if(i >= stages.length){ offerJudge(); return; }
+    const st = stages[i];
+    addLine('chain','【'+st.k+'】通知已送达，请保持手机畅通……');
+    sndDingLong();
+    setTimeout(function(){
+      if(Math.random() < st.p){
+        addLine('chain','【'+st.k+'】对方沉默了几秒 —— 通过了');
+        i++;
+        setTimeout(step, 1200);
+      }else{
+        failChain('【'+st.k+'】被拒 —— “和岗位不太匹配。”');
+      }
+    }, 1600);
+  }
+  setTimeout(step, 900);
+}
+function failChain(msg){
+  addLine('chain', msg);
+  addLine('sys', '流程终止。进度已保留，继续投递。');
+  note('流程终止：不合适。进度已保留。', true);
+  sndBuzz();
+  chainCd = Date.now() + 30000;
+  chainBusy = false;
+  save();
+}
+function offerJudge(){
+  const p = .5 + .2*(S.interview>=6?1:0);
+  addLine('chain','【Offer】审批中……');
+  setTimeout(function(){
+    if(Math.random() < p){
+      addLine('chain','【Offer】电话响起——');
+      note('来电：未知号码…');
+      muteUntil = Date.now() + 6000;   /* 电话铃后，突然安静 */
+      sndRing();
+      setTimeout(function(){
+        S.offer = true; chainBusy = false;
+        if(S.aiOn){
+          S.aiOn = false;
+          aiLogLine('<b>AI</b> 已停止代投。AI 说：恭喜您。这个结果不在我的训练数据里。');
+          refreshTaskAi(); refreshAiPanel();
+        }
+        updateBadge();
+        addLine('chain','【邮件】你收到一封新邮件。');
+        note('新邮件：录用通知');
+        openApp('mail');
+        save();
+      }, 2800);
+    }else{
+      failChain('【Offer】被拒 —— “HC 刚刚被锁定了。”');
+    }
+  }, 1500);
+}
+
+/* ================= 主循环 ================= */
+let lastT = performance.now(), saveCnt = 0;
+function tick(){
+  const now = performance.now();
+  let dt = (now - lastT) / 1000;
+  lastT = now;
+  if(dt > 5) dt = 5;
+  if(!S.started) return;
+  const ar = autoRate();
+  if(ar > 0) S.pend += ar * speedHalf() * dt;
+  processPending();
+  aiTick();
+  S.mot *= Math.pow(0.9, dt/3600);   /* 动力：每小时衰减 10% */
+  offerCheck();
+  renderStats(); refreshSys();
+  if(wins.snake) refreshSnakeMeta();
+  if(++saveCnt >= 60){ saveCnt = 0; save(); }
+}
+const lastFlash = {subs:0, mot:0, rounds:0};
+function flash(el, key){
+  const t = Date.now();
+  if(t - lastFlash[key] < 600) return;
+  lastFlash[key] = t;
+  el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick');
+  setTimeout(function(){ el.classList.remove('tick'); }, 440);
+}
+function renderStats(){
+  const eSubs = $('#tbSubs'), eMot = $('#tbMot'), eRd = $('#tbRounds');
+  const manual = autoRate() === 0;
+  const subsTxt = fmt(S.subs), motTxt = motFmt(S.mot), rdTxt = fmt(S.rounds);
+  if(eSubs.textContent !== subsTxt){
+    eSubs.textContent = subsTxt;
+    if(manual) flash(eSubs, 'subs');
+  }
+  if(eMot.textContent !== motTxt){
+    const grew = S.mot > (renderStats._mot || 0);
+    eMot.textContent = motTxt;
+    if(manual && grew) flash(eMot, 'mot');
+  }
+  if(eRd.textContent !== rdTxt){
+    eRd.textContent = rdTxt;
+    flash(eRd, 'rounds');
+  }
+  renderStats._mot = S.mot;
+  refreshZhipin();
+  refreshLineWins();
+}
+window.addEventListener('beforeunload', save);
+
+/* ================= 存档 ================= */
+const KEY = 'haitou_v2';
+function save(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify({
+      subs:S.subs, mot:S.mot, pos:S.pos, rounds:S.rounds,
+      speed:S.speed, quality:S.quality, interview:S.interview,
+      offer:S.offer, mailRead:S.mailRead, started:true,
+      aiOn:S.aiOn, aiIv:S.aiIv, aiSubs:S.aiSubs, aiLast:S.aiLast, aiSkill:S.aiSkill, snakeBest:S.snakeBest
+    }));
+  }catch(e){}
+}
+function load(){
+  try{
+    const d = JSON.parse(localStorage.getItem(KEY));
+    if(d && typeof d.subs === 'number'){ Object.assign(S, d); return true; }
+  }catch(e){}
+  return false;
+}
+
+/* ================= 开场动画 ================= */
+const slides = [].slice.call(document.querySelectorAll('.islide'));
+let si = -1, typing = false, typeTimer = null;
+
+function buildDots(){
+  const c = $('#idots');
+  slides.forEach(function(){ c.appendChild(document.createElement('i')); });
+}
+function showSlide(i){
+  si = i;
+  slides.forEach(function(s, k){ s.classList.toggle('on', k === i); });
+  [].slice.call($('#idots').children).forEach(function(d, k){ d.classList.toggle('on', k === i); });
+  $('#nextHint').style.display = (i === slides.length-1) ? 'none' : 'block';
+  const lines = JSON.parse(slides[i].dataset.lines || '[]');
+  const box = slides[i].querySelector('.itxt');
+  box.innerHTML = '';
+  typing = true;
+  let li = 0, ci = 0, cur = null, full = '', big = false;
+  function step(){
+    if(li >= lines.length){
+      typing = false;
+      typeTimer = setTimeout(function(){ if(si < slides.length-1) showSlide(si+1); }, 1600);
+      return;
+    }
+    const raw = lines[li];
+    big = raw.charAt(0) === '!';
+    full = big ? raw.slice(1) : raw;
+    if(!cur){
+      cur = document.createElement('span');
+      cur.className = big ? 'big' : 'l';
+      box.appendChild(cur);
+      ci = 0;
+    }
+    ci++;
+    cur.textContent = full.slice(0, ci);
+    if(ci >= full.length){ li++; cur = null; typeTimer = setTimeout(step, 200); }
+    else typeTimer = setTimeout(step, big ? 120 : 44);
+  }
+  step();
+}
+function finishTyping(){
+  clearTimeout(typeTimer);
+  typing = false;
+  const lines = JSON.parse(slides[si].dataset.lines || '[]');
+  slides[si].querySelector('.itxt').innerHTML = lines.map(function(t){
+    return t.charAt(0) === '!' ? '<span class="big">'+t.slice(1)+'</span>' : '<span class="l">'+t+'</span>';
+  }).join('');
+}
+function advanceIntro(){
+  if(S.started) return;
+  if(typing){ finishTyping(); return; }
+  if(si < slides.length-1) showSlide(si+1);
+}
+function endIntro(silent){
+  const intro = $('#intro');
+  intro.classList.add('hide');
+  setTimeout(function(){ intro.style.display = 'none'; }, 1100);
+  S.started = true;
+  openApp('zhipin');
+  if(!silent) note('欢迎回来。今天也要努力投递哦。');
+  save();
+}
+
+/* ================= 初始化 ================= */
+function fit(){
+  const sc = $('#screen');
+  sc.style.fontSize = Math.max(5, sc.clientWidth / 125) + 'px';
+  layoutIcons();
+  snkFit();
+}
+window.addEventListener('resize', fit);
+
+fit();
+buildIcons();
+renderTaskApps();
+
+addLine('sys','系统提示：海投直聘已登录，点击【投递】开始今日份海投。');
+addLine('sys','系统提示：正向反馈会带来「动力」。动力每小时衰减 10%，只用于解锁软件功能。');
+
+$('#intro').addEventListener('click', function(e){
+  if(e.target.closest('#startBtn') || e.target.closest('#skip')) return;
+  advanceIntro();
+});
+$('#skip').addEventListener('click', function(){ endIntro(); });
+$('#startBtn').addEventListener('click', function(){ endIntro(); });
+$('#tbAi').addEventListener('click', function(e){ e.stopPropagation(); openApp('speed'); });
+document.addEventListener('keydown', function(e){
+  const introOpen = $('#intro').style.display !== 'none';
+  if(e.code === 'Escape'){ if(introOpen) endIntro(); return; }
+  /* 开着贪吃蛇窗口时，方向键/空格归游戏，避免空格误投递 */
+  if(!introOpen && wins.snake){
+    const map = {ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0],
+                 w:[0,-1], s:[0,1], a:[-1,0], d:[1,0]};
+    const k = map[e.key] || map[(e.key || '').toLowerCase()];
+    if(k){ e.preventDefault(); snkTurn(k); return; }
+    if(e.code === 'Space'){ e.preventDefault(); snkPause(); return; }
+  }
+  if(e.code === 'Space' || e.code === 'Enter'){
+    e.preventDefault();
+    if(introOpen) advanceIntro();
+    else press();
+  }
+});
+
+buildDots();
+if(load() && S.started){
+  S.aiLast = Date.now();          /* AI 不在你离线时偷跑，回来重新计时 */
+  endIntro(true);
+  if(S.aiOn && aiReady()){ note('AI 代投仍在运行，' + AI_IVS[aiIvIdx()].n + '一份。'); }
+  else S.aiOn = false;
+}else{
+  S.started = false;
+  showSlide(0);
+}
+refreshTaskAi();
+renderStats(); updateBadge();
+(function clock(){
+  const d = new Date();
+  $('#tbClock').textContent = ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+  setTimeout(clock, 15000);
+})();
+setInterval(tick, 250);
+save();
+</script>
+</body>
+</html>
